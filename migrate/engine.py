@@ -8,6 +8,7 @@ from typing import Any, Dict, List, Optional, Sequence
 
 import mysql.connector
 import asyncpg
+from asyncpg import Pool
 
 DEFAULT_BATCH_SIZE = 20_000
 PROGRESS_FILE = "migration_progress.json"
@@ -74,7 +75,7 @@ class Migrator:
         self.cfg = cfg
         self.batch_size = batch_size
         self.mysql: Optional[mysql.connector.MySQLConnection] = None
-        self.pg: Optional[asyncpg.Connection] = None
+        self.pool: Optional[Pool] = None
         self.progress: Dict[str, Dict[str, Any]] = {}
 
     def load_progress(self) -> None:
@@ -101,18 +102,22 @@ class Migrator:
         )
 
     async def connect_pg(self) -> None:
-        self.pg = await asyncpg.connect(
+        async def init_conn(conn):
+            await conn.execute("SET timezone = 'UTC';")
+
+        self.pool = await asyncpg.create_pool(
             user=self.cfg.pg_user,
             password=self.cfg.pg_password,
             database=self.cfg.pg_db,
             host=self.cfg.pg_host,
             port=self.cfg.pg_port,
+            init=init_conn,
         )
 
     async def close(self) -> None:
-        if self.pg is not None:
-            await self.pg.close()
-            self.pg = None
+        if self.pool is not None:
+            await self.pool.close()
+            self.pool = None
         if self.mysql is not None:
             self.mysql.close()
             self.mysql = None
@@ -120,28 +125,31 @@ class Migrator:
     # ---------- Schema helpers ----------
 
     async def schema_exists(self) -> bool:
-        assert self.pg is not None
-        count = await self.pg.fetchval(
-            """
-            SELECT COUNT(*)
-            FROM pg_tables
-            WHERE schemaname = 'public'
-            """
-        )
+        assert self.pool is not None
+        async with self.pool.acquire() as conn:
+            count = await conn.fetchval(
+                """
+                SELECT COUNT(*)
+                FROM pg_tables
+                WHERE schemaname = 'public'
+                """
+            )
         return count > 0
 
     async def apply_schema(self, filename: str) -> None:
-        assert self.pg is not None
+        assert self.pool is not None
         with open(filename, "r", encoding="utf-8") as f:
             sql = f.read()
-        await self.pg.execute(sql)
+        async with self.pool.acquire() as conn:
+            await conn.execute(sql)
 
     async def truncate_table(self, table: str) -> None:
-        assert self.pg is not None
+        assert self.pool is not None
         # RESTART IDENTITY 重置序列，CASCADE 处理外键依赖
-        await self.pg.execute(
-            f'TRUNCATE TABLE "{table}" RESTART IDENTITY CASCADE;'
-        )
+        async with self.pool.acquire() as conn:
+            await conn.execute(
+                f'TRUNCATE TABLE "{table}" RESTART IDENTITY CASCADE;'
+            )
 
     # ---------- Data migration ----------
 
@@ -153,7 +161,7 @@ class Migrator:
         - 批量 INSERT 到 PostgreSQL
         """
         assert self.mysql is not None
-        assert self.pg is not None
+        assert self.pool is not None
 
         pk_col = columns[0]  # 假设第一列是主键
         last_id = self.progress.get(table, {}).get("last_id", None)
@@ -175,37 +183,38 @@ class Migrator:
 
         total = total_migrated
 
-        while True:
-            rows: Sequence[Sequence[Any]] = cursor.fetchmany(self.batch_size)
-            if not rows:
-                break
-
-            # 按列名逐个清洗
-            cleaned_batch = [
-                [clean_value(table, col, val) for col, val in zip(columns, row)]
-                for row in rows
-            ]
-
-            # 重试机制
-            max_retries = 3
-            for attempt in range(max_retries):
-                try:
-                    await self.pg.executemany(insert_sql, cleaned_batch)
+        async with self.pool.acquire() as conn:
+            while True:
+                rows: Sequence[Sequence[Any]] = cursor.fetchmany(self.batch_size)
+                if not rows:
                     break
-                except Exception as e:
-                    if attempt == max_retries - 1:
-                        raise e
-                    print(f"Retry {attempt + 1}/{max_retries} for {table} batch: {e}")
-                    await asyncio.sleep(1)
 
-            total += len(cleaned_batch)
+                # 按列名逐个清洗
+                cleaned_batch = [
+                    [clean_value(table, col, val) for col, val in zip(columns, row)]
+                    for row in rows
+                ]
 
-            # 更新进度
-            last_id = rows[-1][0]  # 假设第一列是ID
-            self.progress[table] = {"last_id": last_id, "total": total}
-            self.save_progress()
+                # 重试机制
+                max_retries = 3
+                for attempt in range(max_retries):
+                    try:
+                        await conn.executemany(insert_sql, cleaned_batch)
+                        break
+                    except Exception as e:
+                        if attempt == max_retries - 1:
+                            raise e
+                        print(f"Retry {attempt + 1}/{max_retries} for {table} batch: {e}")
+                        await asyncio.sleep(1)
 
-            print(f"{table}: {total:,} rows migrated...")
+                total += len(cleaned_batch)
+
+                # 更新进度
+                last_id = rows[-1][0]  # 假设第一列是ID
+                self.progress[table] = {"last_id": last_id, "total": total}
+                self.save_progress()
+
+                print(f"{table}: {total:,} rows migrated...")
 
         cursor.close()
 
@@ -213,17 +222,18 @@ class Migrator:
         """
         把 PostgreSQL 对应的序列调整到 MAX(pk)，避免后续插入主键冲突。
         """
-        assert self.pg is not None
+        assert self.pool is not None
 
-        seq = await self.pg.fetchval(
-            "SELECT pg_get_serial_sequence($1, $2)", table, pk
-        )
-        if not seq:
-            # 例如 migration_changes.migration_id 这种 varchar PK 没有序列
-            return
+        async with self.pool.acquire() as conn:
+            seq = await conn.fetchval(
+                "SELECT pg_get_serial_sequence($1, $2)", table, pk
+            )
+            if not seq:
+                # 例如 migration_changes.migration_id 这种 varchar PK 没有序列
+                return
 
-        await self.pg.execute(
-            f"SELECT setval($1, (SELECT COALESCE(MAX({pk}), 1) FROM {table}))",
-            seq,
-        )
+            await conn.execute(
+                f"SELECT setval($1, (SELECT COALESCE(MAX({pk}), 1) FROM {table}))",
+                seq,
+            )
 
