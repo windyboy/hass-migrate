@@ -1,12 +1,16 @@
 from __future__ import annotations
 
+import json
+import os
+import asyncio
 from datetime import datetime, timezone
-from typing import Any, List, Optional, Sequence
+from typing import Any, Dict, List, Optional, Sequence
 
 import mysql.connector
 import asyncpg
 
-BATCH_SIZE = 20_000
+DEFAULT_BATCH_SIZE = 20_000
+PROGRESS_FILE = "migration_progress.json"
 
 # 按“差异清单”列出需要 int→bool 的字段（表名 + 列名）
 BOOL_COLUMNS = {
@@ -66,10 +70,23 @@ def clean_value(table: str, column: str, value: Any) -> Any:
 
 
 class Migrator:
-    def __init__(self, cfg):
+    def __init__(self, cfg, batch_size: int = DEFAULT_BATCH_SIZE):
         self.cfg = cfg
+        self.batch_size = batch_size
         self.mysql: Optional[mysql.connector.MySQLConnection] = None
         self.pg: Optional[asyncpg.Connection] = None
+        self.progress: Dict[str, Dict[str, Any]] = {}
+
+    def load_progress(self) -> None:
+        """Load migration progress from file."""
+        if os.path.exists(PROGRESS_FILE):
+            with open(PROGRESS_FILE, "r") as f:
+                self.progress = json.load(f)
+
+    def save_progress(self) -> None:
+        """Save migration progress to file."""
+        with open(PROGRESS_FILE, "w") as f:
+            json.dump(self.progress, f, indent=2)
 
     # ---------- Connections ----------
 
@@ -131,39 +148,63 @@ class Migrator:
     async def migrate_table(self, table: str, columns: List[str]) -> None:
         """
         通用表迁移逻辑：
-        - 从 MySQL SELECT 对应列
+        - 从 MySQL SELECT 对应列，支持断点续传
         - 逐行按差异清单清洗数据
         - 批量 INSERT 到 PostgreSQL
         """
         assert self.mysql is not None
         assert self.pg is not None
 
+        pk_col = columns[0]  # 假设第一列是主键
+        last_id = self.progress.get(table, {}).get("last_id", None)
+        total_migrated = self.progress.get(table, {}).get("total", 0)
+
         cursor = self.mysql.cursor()
 
-        # MySQL 侧列名（这里不用加引号，表/列名是硬编码的）
+        # MySQL 侧列名
         col_str = ", ".join(columns)
-        cursor.execute(f"SELECT {col_str} FROM {table}")
+        if last_id is not None:
+            cursor.execute(f"SELECT {col_str} FROM {table} WHERE {pk_col} > %s ORDER BY {pk_col}", (last_id,))
+        else:
+            cursor.execute(f"SELECT {col_str} FROM {table} ORDER BY {pk_col}")
 
-        # PostgreSQL 侧需要对标识符加引号（防止关键字冲突，比如 end）
+        # PostgreSQL 侧
         pg_columns = ", ".join(f'"{c}"' for c in columns)
         placeholders = ", ".join(f"${i+1}" for i in range(len(columns)))
         insert_sql = f'INSERT INTO "{table}" ({pg_columns}) VALUES ({placeholders})'
 
-        total = 0
+        total = total_migrated
 
         while True:
-            rows: Sequence[Sequence[Any]] = cursor.fetchmany(BATCH_SIZE)
+            rows: Sequence[Sequence[Any]] = cursor.fetchmany(self.batch_size)
             if not rows:
                 break
 
-            # 按列名逐个清洗（这里传入 table + column 名）
+            # 按列名逐个清洗
             cleaned_batch = [
                 [clean_value(table, col, val) for col, val in zip(columns, row)]
                 for row in rows
             ]
 
-            await self.pg.executemany(insert_sql, cleaned_batch)
+            # 重试机制
+            max_retries = 3
+            for attempt in range(max_retries):
+                try:
+                    await self.pg.executemany(insert_sql, cleaned_batch)
+                    break
+                except Exception as e:
+                    if attempt == max_retries - 1:
+                        raise e
+                    print(f"Retry {attempt + 1}/{max_retries} for {table} batch: {e}")
+                    await asyncio.sleep(1)
+
             total += len(cleaned_batch)
+
+            # 更新进度
+            last_id = rows[-1][0]  # 假设第一列是ID
+            self.progress[table] = {"last_id": last_id, "total": total}
+            self.save_progress()
+
             print(f"{table}: {total:,} rows migrated...")
 
         cursor.close()

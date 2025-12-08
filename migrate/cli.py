@@ -1,8 +1,10 @@
 import asyncio
 import os
+import time
 
 import typer
 from rich.console import Console
+from rich.progress import Progress, TaskID
 
 from migrate.config import DBConfig
 from migrate.engine import Migrator
@@ -193,10 +195,11 @@ def check():
 @app.command("migrate-event-data")
 def migrate_event_data(
     force: bool = typer.Option(False, "--force", "-f", help="Skip confirmation"),
+    batch_size: int = typer.Option(20000, "--batch-size", help="Batch size for migration"),
 ):
     """Migrate only event_data table (for testing)."""
     cfg = DBConfig()
-    m = Migrator(cfg)
+    m = Migrator(cfg, batch_size)
     m.connect_mysql()
 
     async def _run():
@@ -226,31 +229,77 @@ def migrate_event_data(
 @app.command("migrate-all")
 def migrate_all(
     force: bool = typer.Option(False, "--force", "-f", help="Truncate without asking"),
+    resume: bool = typer.Option(False, "--resume", help="Resume from previous migration"),
+    batch_size: int = typer.Option(20000, "--batch-size", help="Batch size for migration"),
 ):
     """Full migration: schema → truncate → migrate all recorder tables."""
     cfg = DBConfig()
-    m = Migrator(cfg)
+    m = Migrator(cfg, batch_size)
     m.connect_mysql()
+    m.load_progress()
 
     async def _run():
+        start_time = time.time()
         await m.connect_pg()
         await ensure_schema(m)
 
-        if not force:
+        if not resume and not force:
             if not typer.confirm("Truncate ALL tables before migration?"):
                 console.print("[yellow]Cancelled.[/yellow]")
                 await m.close()
                 return
 
-        for table, cols in TABLES:
-            console.rule(f"[cyan]Migrating {table}[/cyan]")
-            await m.truncate_table(table)
+        # 定义依赖顺序：先迁移基础表，然后并发迁移大数据表
+        dependent_tables = ["event_types", "event_data", "state_attributes", "states_meta", "statistics_meta"]
+        concurrent_tables = ["events", "states", "statistics", "statistics_short_term", "recorder_runs", "statistics_runs", "schema_changes", "migration_changes"]
+
+        # 先顺序迁移依赖表
+        for table in dependent_tables:
+            cols = next(c for t, c in TABLES if t == table)
+            if resume and table in m.progress:
+                console.print(f"[cyan]Resuming {table} from {m.progress[table]['total']:,} rows[/cyan]")
+            else:
+                if not resume:
+                    await m.truncate_table(table)
+                console.rule(f"[cyan]Migrating {table}[/cyan]")
+
             await m.migrate_table(table, cols)
             await m.fix_sequence(table, cols[0])
+
+            if table in m.progress:
+                del m.progress[table]
+                m.save_progress()
+
             console.print(f"[green]{table}: done[/green]")
 
+        # 并发迁移剩余表
+        async def migrate_concurrent(table: str, cols: List[str]):
+            if resume and table in m.progress:
+                console.print(f"[cyan]Resuming {table} from {m.progress[table]['total']:,} rows[/cyan]")
+            else:
+                if not resume:
+                    await m.truncate_table(table)
+                console.rule(f"[cyan]Migrating {table}[/cyan]")
+
+            await m.migrate_table(table, cols)
+            await m.fix_sequence(table, cols[0])
+
+            if table in m.progress:
+                del m.progress[table]
+                m.save_progress()
+
+            console.print(f"[green]{table}: done[/green]")
+
+        tasks = [migrate_concurrent(table, next(c for t, c in TABLES if t == table)) for table in concurrent_tables]
+        await asyncio.gather(*tasks)
+
+        # 清理进度文件
+        if os.path.exists("migration_progress.json"):
+            os.remove("migration_progress.json")
+
+        duration = time.time() - start_time
         await m.close()
-        console.rule("[bold green]Migration completed successfully! 🎉[/bold green]")
+        console.rule(f"[bold green]Migration completed successfully in {duration:.2f}s! 🎉[/bold green]")
 
     asyncio.run(_run())
 
