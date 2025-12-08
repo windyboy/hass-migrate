@@ -16,7 +16,7 @@ CREATE UNIQUE INDEX ix_event_types_event_type ON event_types(event_type);
 -- Table: event_data
 CREATE TABLE event_data (
     data_id BIGSERIAL PRIMARY KEY,
-    hash INTEGER,
+    hash BIGINT,
     shared_data TEXT
 );
 
@@ -49,7 +49,7 @@ CREATE INDEX ix_events_data_id ON events(data_id);
 -- Table: state_attributes
 CREATE TABLE state_attributes (
     attributes_id BIGSERIAL PRIMARY KEY,
-    hash INTEGER,
+    hash BIGINT,
     shared_attrs TEXT
 );
 

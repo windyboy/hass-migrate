@@ -1,5 +1,6 @@
 import asyncio
 import os
+import sys
 import time
 from typing import List
 
@@ -130,15 +131,22 @@ TABLES = [
 ]
 
 
-async def ensure_schema(migrator: Migrator):
+async def ensure_schema(migrator: Migrator, force: bool = False):
     if not os.path.exists(SCHEMA_FILE):
         console.print(f"[red]Missing schema file: {SCHEMA_FILE}[/red]")
         raise typer.Exit(1)
 
     exists = await migrator.schema_exists()
-    if not exists:
+    print(f"[DEBUG] ensure_schema called with force={force}, exists={exists}", file=sys.stderr)
+    if force:
+        # Force mode: always drop and recreate, even if schema doesn't exist
+        # This handles cases where tables partially exist
+        console.print(f"[yellow]Force mode: dropping and recreating schema (force={force})...[/yellow]")
+        await migrator.apply_schema(SCHEMA_FILE, force=True)
+        console.print("[green]Schema recreated successfully[/green]")
+    elif not exists:
         console.print("[yellow]Schema missing → applying schema.sql...[/yellow]")
-        await migrator.apply_schema(SCHEMA_FILE)
+        await migrator.apply_schema(SCHEMA_FILE, force=False)
         console.print("[green]Schema applied successfully[/green]")
     else:
         console.print("[cyan]Schema exists in PostgreSQL[/cyan]")
@@ -210,11 +218,14 @@ def validate():
             for table, counts in results.items():
                 mysql_count = counts['mysql']
                 pg_count = counts['postgres']
+                schema = counts.get('schema', 'unknown')
                 if mysql_count == pg_count:
-                    console.print(f"[green]✓ {table}: {mysql_count:,} rows[/green]")
+                    schema_info = f" (schema: {schema})" if schema else ""
+                    console.print(f"[green]✓ {table}: {mysql_count:,} rows{schema_info}[/green]")
                 else:
+                    schema_info = f" (schema: {schema})" if schema else " (table not found)"
                     console.print(
-                        f"[red]✗ {table}: MySQL={mysql_count:,} PostgreSQL={pg_count:,}[/red]"
+                        f"[red]✗ {table}: MySQL={mysql_count:,} PostgreSQL={pg_count:,}{schema_info}[/red]"
                     )
                     all_ok = False
             if all_ok:
@@ -243,7 +254,7 @@ def migrate_event_data(
     async def _run():
         try:
             await m.connect_pg()
-            await ensure_schema(m)
+            await ensure_schema(m, force=force)
 
             table = "event_data"
             cols = [c for (t, c) in TABLES if t == table][0]
@@ -285,7 +296,7 @@ def migrate_all(
         start_time = time.time()
         try:
             await m.connect_pg()
-            await ensure_schema(m)
+            await ensure_schema(m, force=force)
 
             if not resume and not force:
                 if not typer.confirm("Truncate ALL tables before migration?"):
@@ -334,23 +345,33 @@ def migrate_all(
 
             # Concurrently migrate remaining tables
             async def migrate_concurrent(table: str, cols: List[str]):
-                if resume and table in m.progress:
-                    console.print(
-                        f"[cyan]Resuming {table} from {m.progress[table]['total']:,} rows[/cyan]"
-                    )
-                else:
-                    if not resume:
-                        await m.truncate_table(table)
-                    console.rule(f"[cyan]Migrating {table}[/cyan]")
+                # Create a separate MySQL connection for each concurrent migration
+                mysql_conn = m.create_mysql_connection()
+                try:
+                    if resume and table in m.progress:
+                        console.print(
+                            f"[cyan]Resuming {table} from {m.progress[table]['total']:,} rows[/cyan]"
+                        )
+                    else:
+                        if not resume:
+                            await m.truncate_table(table)
+                        console.rule(f"[cyan]Migrating {table}[/cyan]")
 
-                await m.migrate_table(table, cols)
-                await m.fix_sequence(table, cols[0])
+                    await m.migrate_table(table, cols, mysql_conn=mysql_conn)
+                    await m.fix_sequence(table, cols[0])
 
-                if table in m.progress:
-                    del m.progress[table]
-                    m.save_progress()
+                    if table in m.progress:
+                        del m.progress[table]
+                        m.save_progress()
 
-                console.print(f"[green]{table}: done[/green]")
+                    console.print(f"[green]{table}: done[/green]")
+                finally:
+                    # Connection will be closed in migrate_table if created there
+                    # But ensure it's closed here too for safety
+                    try:
+                        mysql_conn.close()
+                    except:
+                        pass
 
             tasks = [
                 migrate_concurrent(table, next(c for t, c in TABLES if t == table))
