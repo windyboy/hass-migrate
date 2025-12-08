@@ -250,11 +250,11 @@ def migrate_all(
                 await m.close()
                 return
 
-        # 定义依赖顺序：先迁移基础表，然后并发迁移大数据表
+        # Define dependency order: migrate base tables first, then concurrently migrate large data tables
         dependent_tables = ["event_types", "event_data", "state_attributes", "states_meta", "statistics_meta"]
         concurrent_tables = ["events", "states", "statistics", "statistics_short_term", "recorder_runs", "statistics_runs", "schema_changes", "migration_changes"]
 
-        # 先顺序迁移依赖表
+        # First migrate dependent tables sequentially
         for table in dependent_tables:
             cols = next(c for t, c in TABLES if t == table)
             if resume and table in m.progress:
@@ -273,7 +273,7 @@ def migrate_all(
 
             console.print(f"[green]{table}: done[/green]")
 
-        # 并发迁移剩余表
+        # Concurrently migrate remaining tables
         async def migrate_concurrent(table: str, cols: List[str]):
             if resume and table in m.progress:
                 console.print(f"[cyan]Resuming {table} from {m.progress[table]['total']:,} rows[/cyan]")
@@ -294,7 +294,7 @@ def migrate_all(
         tasks = [migrate_concurrent(table, next(c for t, c in TABLES if t == table)) for table in concurrent_tables]
         await asyncio.gather(*tasks)
 
-        # 清理进度文件
+        # Clean up progress file
         if os.path.exists("migration_progress.json"):
             os.remove("migration_progress.json")
 
