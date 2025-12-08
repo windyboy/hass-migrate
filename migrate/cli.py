@@ -13,7 +13,8 @@ from migrate.engine import Migrator
 app = typer.Typer(help="Home Assistant MySQL → PostgreSQL migration tool")
 console = Console()
 
-SCHEMA_FILE = "migrate/schema/postgres_schema.sql"
+# Path to schema file relative to this file's directory
+SCHEMA_FILE = os.path.join(os.path.dirname(__file__), "schema", "postgres_schema.sql")
 
 # 注意：这里每个 tuple 是 (表名, [字段列表])
 TABLES = [
@@ -193,6 +194,40 @@ def check():
     console.print("[bold green]All connections OK[/bold green]")
 
 
+@app.command()
+def validate():
+    """Validate migration by comparing row counts between MySQL and PostgreSQL."""
+    cfg = DBConfig()
+    m = Migrator(cfg)
+    m.connect_mysql()
+
+    async def _run():
+        await m.connect_pg()
+        console.rule("[bold cyan]VALIDATION[/bold cyan]")
+        try:
+            results = await m.validate_table_counts()
+            all_ok = True
+            for table, counts in results.items():
+                mysql_count = counts['mysql']
+                pg_count = counts['postgres']
+                if mysql_count == pg_count:
+                    console.print(f"[green]✓ {table}: {mysql_count:,} rows[/green]")
+                else:
+                    console.print(
+                        f"[red]✗ {table}: MySQL={mysql_count:,} PostgreSQL={pg_count:,}[/red]"
+                    )
+                    all_ok = False
+            if all_ok:
+                console.print("[bold green]All tables match![/bold green]")
+            else:
+                console.print("[bold red]Validation failed: row counts mismatch[/bold red]")
+                raise typer.Exit(1)
+        finally:
+            await m.close()
+
+    asyncio.run(_run())
+
+
 @app.command("migrate-event-data")
 def migrate_event_data(
     force: bool = typer.Option(False, "--force", "-f", help="Skip confirmation"),
@@ -206,25 +241,26 @@ def migrate_event_data(
     m.connect_mysql()
 
     async def _run():
-        await m.connect_pg()
-        await ensure_schema(m)
+        try:
+            await m.connect_pg()
+            await ensure_schema(m)
 
-        table = "event_data"
-        cols = [c for (t, c) in TABLES if t == table][0]
+            table = "event_data"
+            cols = [c for (t, c) in TABLES if t == table][0]
 
-        if not force:
-            if not typer.confirm(f"Truncate target table '{table}' before migration?"):
-                console.print("[yellow]Cancelled.[/yellow]")
-                await m.close()
-                return
+            if not force:
+                if not typer.confirm(f"Truncate target table '{table}' before migration?"):
+                    console.print("[yellow]Cancelled.[/yellow]")
+                    return
 
-        await m.truncate_table(table)
-        console.rule(f"[cyan]Migrating {table}[/cyan]")
-        await m.migrate_table(table, cols)
-        await m.fix_sequence(table, cols[0])
+            await m.truncate_table(table)
+            console.rule(f"[cyan]Migrating {table}[/cyan]")
+            await m.migrate_table(table, cols)
+            await m.fix_sequence(table, cols[0])
 
-        await m.close()
-        console.print(f"[bold green]Done: {table}[/bold green]")
+            console.print(f"[bold green]Done: {table}[/bold green]")
+        finally:
+            await m.close()
 
     asyncio.run(_run())
 
@@ -247,89 +283,90 @@ def migrate_all(
 
     async def _run():
         start_time = time.time()
-        await m.connect_pg()
-        await ensure_schema(m)
+        try:
+            await m.connect_pg()
+            await ensure_schema(m)
 
-        if not resume and not force:
-            if not typer.confirm("Truncate ALL tables before migration?"):
-                console.print("[yellow]Cancelled.[/yellow]")
-                await m.close()
-                return
+            if not resume and not force:
+                if not typer.confirm("Truncate ALL tables before migration?"):
+                    console.print("[yellow]Cancelled.[/yellow]")
+                    return
 
-        # Define dependency order: migrate base tables first, then concurrently migrate large data tables
-        dependent_tables = [
-            "event_types",
-            "event_data",
-            "state_attributes",
-            "states_meta",
-            "statistics_meta",
-        ]
-        concurrent_tables = [
-            "events",
-            "states",
-            "statistics",
-            "statistics_short_term",
-            "recorder_runs",
-            "statistics_runs",
-            "schema_changes",
-            "migration_changes",
-        ]
+            # Define dependency order: migrate base tables first, then concurrently migrate large data tables
+            dependent_tables = [
+                "event_types",
+                "event_data",
+                "state_attributes",
+                "states_meta",
+                "statistics_meta",
+            ]
+            concurrent_tables = [
+                "events",
+                "states",
+                "statistics",
+                "statistics_short_term",
+                "recorder_runs",
+                "statistics_runs",
+                "schema_changes",
+                "migration_changes",
+            ]
 
-        # First migrate dependent tables sequentially
-        for table in dependent_tables:
-            cols = next(c for t, c in TABLES if t == table)
-            if resume and table in m.progress:
-                console.print(
-                    f"[cyan]Resuming {table} from {m.progress[table]['total']:,} rows[/cyan]"
-                )
-            else:
-                if not resume:
-                    await m.truncate_table(table)
-                console.rule(f"[cyan]Migrating {table}[/cyan]")
+            # First migrate dependent tables sequentially
+            for table in dependent_tables:
+                cols = next(c for t, c in TABLES if t == table)
+                if resume and table in m.progress:
+                    console.print(
+                        f"[cyan]Resuming {table} from {m.progress[table]['total']:,} rows[/cyan]"
+                    )
+                else:
+                    if not resume:
+                        await m.truncate_table(table)
+                    console.rule(f"[cyan]Migrating {table}[/cyan]")
 
-            await m.migrate_table(table, cols)
-            await m.fix_sequence(table, cols[0])
+                await m.migrate_table(table, cols)
+                await m.fix_sequence(table, cols[0])
 
-            if table in m.progress:
-                del m.progress[table]
-                m.save_progress()
+                if table in m.progress:
+                    del m.progress[table]
+                    m.save_progress()
 
-            console.print(f"[green]{table}: done[/green]")
+                console.print(f"[green]{table}: done[/green]")
 
-        # Concurrently migrate remaining tables
-        async def migrate_concurrent(table: str, cols: List[str]):
-            if resume and table in m.progress:
-                console.print(
-                    f"[cyan]Resuming {table} from {m.progress[table]['total']:,} rows[/cyan]"
-                )
-            else:
-                if not resume:
-                    await m.truncate_table(table)
-                console.rule(f"[cyan]Migrating {table}[/cyan]")
+            # Concurrently migrate remaining tables
+            async def migrate_concurrent(table: str, cols: List[str]):
+                if resume and table in m.progress:
+                    console.print(
+                        f"[cyan]Resuming {table} from {m.progress[table]['total']:,} rows[/cyan]"
+                    )
+                else:
+                    if not resume:
+                        await m.truncate_table(table)
+                    console.rule(f"[cyan]Migrating {table}[/cyan]")
 
-            await m.migrate_table(table, cols)
-            await m.fix_sequence(table, cols[0])
+                await m.migrate_table(table, cols)
+                await m.fix_sequence(table, cols[0])
 
-            if table in m.progress:
-                del m.progress[table]
-                m.save_progress()
+                if table in m.progress:
+                    del m.progress[table]
+                    m.save_progress()
 
-            console.print(f"[green]{table}: done[/green]")
+                console.print(f"[green]{table}: done[/green]")
 
-        tasks = [
-            migrate_concurrent(table, next(c for t, c in TABLES if t == table))
-            for table in concurrent_tables
-        ]
-        await asyncio.gather(*tasks)
+            tasks = [
+                migrate_concurrent(table, next(c for t, c in TABLES if t == table))
+                for table in concurrent_tables
+            ]
+            await asyncio.gather(*tasks)
 
-        # Clean up progress file
-        if os.path.exists("migration_progress.json"):
-            os.remove("migration_progress.json")
+            # Clean up progress file
+            if os.path.exists("migration_progress.json"):
+                os.remove("migration_progress.json")
 
-        duration = time.time() - start_time
-        await m.close()
-        console.rule(
-            f"[bold green]Migration completed successfully in {duration:.2f}s! 🎉[/bold green]"
-        )
+            duration = time.time() - start_time
+            console.rule(
+                f"[bold green]Migration completed successfully in {duration:.2f}s! 🎉[/bold green]"
+            )
+        finally:
+            await m.close()
 
     asyncio.run(_run())

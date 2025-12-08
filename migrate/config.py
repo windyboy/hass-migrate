@@ -34,11 +34,11 @@ class DBConfig:
             self.pg_password = self._require_env("PG_PASSWORD")
             self.pg_db = self._require_env("PG_DB")
         except ConfigError as e:
-            print(f"❌ Configuration Error: {e}")
-            print("\nPlease ensure your .env file is properly configured.")
-            print("You can copy .env.example as a template:\n")
-            print("  cp .env.example .env")
-            print("  # Then edit .env with your database credentials\n")
+            sys.stderr.write(f"❌ Configuration Error: {e}\n")
+            sys.stderr.write("\nPlease ensure your .env file is properly configured.\n")
+            sys.stderr.write("You can copy .env.example as a template:\n\n")
+            sys.stderr.write("  cp .env.example .env\n")
+            sys.stderr.write("  # Then edit .env with your database credentials\n\n")
             sys.exit(1)
 
     def _require_env(self, key: str) -> str:

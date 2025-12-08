@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import sys
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Sequence
 
@@ -19,6 +20,23 @@ BOOL_COLUMNS = {
     ("statistics_meta", "has_mean"),
     ("statistics_meta", "has_sum"),
 }
+
+# Table names used for validation (must match cli.py TABLES)
+TABLE_NAMES = [
+    "event_types",
+    "event_data",
+    "events",
+    "state_attributes",
+    "states_meta",
+    "states",
+    "statistics_meta",
+    "statistics",
+    "statistics_short_term",
+    "recorder_runs",
+    "statistics_runs",
+    "schema_changes",
+    "migration_changes",
+]
 
 
 def clean_value(table: str, column: str, value: Any) -> Any:
@@ -56,6 +74,11 @@ def clean_value(table: str, column: str, value: Any) -> Any:
             # Only accept 0 and 1, error on other values rather than silent conversion
             if value in (0, 1):
                 return bool(value)
+            # Log warning for unexpected integer values
+            print(
+                f"Warning: {table}.{column} has non‑boolean integer {value!r}, keeping as‑is",
+                file=sys.stderr,
+            )
         # Shouldn't reach here, but if we do it indicates data anomaly
         return value
 
@@ -214,7 +237,8 @@ class Migrator:
                         if attempt == max_retries - 1:
                             raise e
                         print(
-                            f"Retry {attempt + 1}/{max_retries} for {table} batch: {e}"
+                            f"Retry {attempt + 1}/{max_retries} for {table} batch: {e}",
+                            file=sys.stderr,
                         )
                         await asyncio.sleep(1)
 
@@ -246,3 +270,30 @@ class Migrator:
                 f"SELECT setval($1, (SELECT COALESCE(MAX({pk}), 1) FROM {table}))",
                 seq,
             )
+
+    async def validate_table_counts(self) -> Dict[str, Dict[str, int]]:
+        """
+        Compare row counts between MySQL and PostgreSQL for all tables.
+        Returns a dict mapping table name to {'mysql': count, 'postgres': count}.
+        """
+        assert self.mysql is not None
+        assert self.pool is not None
+
+        results = {}
+
+        # MySQL counts
+        mysql_cursor = self.mysql.cursor()
+        for table in TABLE_NAMES:
+            mysql_cursor.execute(f"SELECT COUNT(*) FROM {table}")
+            mysql_count = mysql_cursor.fetchone()[0]
+            results[table] = {'mysql': mysql_count}
+
+        mysql_cursor.close()
+
+        # PostgreSQL counts
+        async with self.pool.acquire() as conn:
+            for table in TABLE_NAMES:
+                pg_count = await conn.fetchval(f'SELECT COUNT(*) FROM "{table}"')
+                results[table]['postgres'] = pg_count
+
+        return results
