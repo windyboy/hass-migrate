@@ -275,11 +275,14 @@ migrate/
 │   ├── config.py            # Configuration and validation
 │   ├── engine.py            # Migration engine
 │   └── schema/
-│       └── postgres_schema.sql  # PostgreSQL schema
+│       ├── postgres_schema.sql  # PostgreSQL schema (USED)
+│       └── schema.sql           # MySQL schema (reference only)
 ├── .env.example             # Environment template
 ├── pyproject.toml           # Project dependencies
 └── README.md                # This file
 ```
+
+**Note:** The migration tool uses `postgres_schema.sql` which contains the proper PostgreSQL schema. The `schema.sql` file is a MySQL dump kept for reference only.
 
 ### Code Quality
 

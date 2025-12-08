@@ -13,7 +13,7 @@ from migrate.engine import Migrator
 app = typer.Typer(help="Home Assistant MySQL → PostgreSQL migration tool")
 console = Console()
 
-SCHEMA_FILE = "migrate/schema/schema.sql"
+SCHEMA_FILE = "migrate/schema/postgres_schema.sql"
 
 # 注意：这里每个 tuple 是 (表名, [字段列表])
 TABLES = [
@@ -196,7 +196,9 @@ def check():
 @app.command("migrate-event-data")
 def migrate_event_data(
     force: bool = typer.Option(False, "--force", "-f", help="Skip confirmation"),
-    batch_size: int = typer.Option(20000, "--batch-size", help="Batch size for migration"),
+    batch_size: int = typer.Option(
+        20000, "--batch-size", help="Batch size for migration"
+    ),
 ):
     """Migrate only event_data table (for testing)."""
     cfg = DBConfig()
@@ -230,8 +232,12 @@ def migrate_event_data(
 @app.command("migrate-all")
 def migrate_all(
     force: bool = typer.Option(False, "--force", "-f", help="Truncate without asking"),
-    resume: bool = typer.Option(False, "--resume", help="Resume from previous migration"),
-    batch_size: int = typer.Option(20000, "--batch-size", help="Batch size for migration"),
+    resume: bool = typer.Option(
+        False, "--resume", help="Resume from previous migration"
+    ),
+    batch_size: int = typer.Option(
+        20000, "--batch-size", help="Batch size for migration"
+    ),
 ):
     """Full migration: schema → truncate → migrate all recorder tables."""
     cfg = DBConfig()
@@ -251,14 +257,31 @@ def migrate_all(
                 return
 
         # Define dependency order: migrate base tables first, then concurrently migrate large data tables
-        dependent_tables = ["event_types", "event_data", "state_attributes", "states_meta", "statistics_meta"]
-        concurrent_tables = ["events", "states", "statistics", "statistics_short_term", "recorder_runs", "statistics_runs", "schema_changes", "migration_changes"]
+        dependent_tables = [
+            "event_types",
+            "event_data",
+            "state_attributes",
+            "states_meta",
+            "statistics_meta",
+        ]
+        concurrent_tables = [
+            "events",
+            "states",
+            "statistics",
+            "statistics_short_term",
+            "recorder_runs",
+            "statistics_runs",
+            "schema_changes",
+            "migration_changes",
+        ]
 
         # First migrate dependent tables sequentially
         for table in dependent_tables:
             cols = next(c for t, c in TABLES if t == table)
             if resume and table in m.progress:
-                console.print(f"[cyan]Resuming {table} from {m.progress[table]['total']:,} rows[/cyan]")
+                console.print(
+                    f"[cyan]Resuming {table} from {m.progress[table]['total']:,} rows[/cyan]"
+                )
             else:
                 if not resume:
                     await m.truncate_table(table)
@@ -276,7 +299,9 @@ def migrate_all(
         # Concurrently migrate remaining tables
         async def migrate_concurrent(table: str, cols: List[str]):
             if resume and table in m.progress:
-                console.print(f"[cyan]Resuming {table} from {m.progress[table]['total']:,} rows[/cyan]")
+                console.print(
+                    f"[cyan]Resuming {table} from {m.progress[table]['total']:,} rows[/cyan]"
+                )
             else:
                 if not resume:
                     await m.truncate_table(table)
@@ -291,7 +316,10 @@ def migrate_all(
 
             console.print(f"[green]{table}: done[/green]")
 
-        tasks = [migrate_concurrent(table, next(c for t, c in TABLES if t == table)) for table in concurrent_tables]
+        tasks = [
+            migrate_concurrent(table, next(c for t, c in TABLES if t == table))
+            for table in concurrent_tables
+        ]
         await asyncio.gather(*tasks)
 
         # Clean up progress file
@@ -300,7 +328,8 @@ def migrate_all(
 
         duration = time.time() - start_time
         await m.close()
-        console.rule(f"[bold green]Migration completed successfully in {duration:.2f}s! 🎉[/bold green]")
+        console.rule(
+            f"[bold green]Migration completed successfully in {duration:.2f}s! 🎉[/bold green]"
+        )
 
     asyncio.run(_run())
-
