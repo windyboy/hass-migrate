@@ -46,20 +46,12 @@ class TestCleanValue:
         assert clean_value("recorder_runs", "closed_incorrect", False) is False
         assert clean_value("recorder_runs", "closed_incorrect", True) is True
 
-    def test_boolean_columns_invalid_int(self):
-        """Test that invalid integer values are kept as-is with warning."""
-        # The function prints a warning to stderr but doesn't raise a warning
-        import io
-        import sys
-        from contextlib import redirect_stderr
-        
-        stderr_capture = io.StringIO()
-        with redirect_stderr(stderr_capture):
-            result = clean_value("recorder_runs", "closed_incorrect", 5)
+    def test_boolean_columns_invalid_int(self, caplog):
+        """Test that invalid int values in boolean columns are kept as-is with warning."""
+        result = clean_value("recorder_runs", "closed_incorrect", 5)
         assert result == 5
-        # Check that warning was printed
-        stderr_output = stderr_capture.getvalue()
-        assert "Warning" in stderr_output or "non‑boolean" in stderr_output or "5" in stderr_output
+        # Check that warning was logged
+        assert "non-boolean integer 5" in caplog.text
 
     def test_non_boolean_columns_int_not_converted(self):
         """Test that int values in non-boolean columns are not converted."""
@@ -97,21 +89,15 @@ class TestCleanValue:
         assert isinstance(result, datetime)
         assert result.tzinfo is None
 
-    def test_timestamp_columns_invalid_timestamp(self):
+    def test_timestamp_columns_invalid_timestamp(self, caplog):
         """Test handling of invalid timestamp values."""
-        import io
-        from contextlib import redirect_stderr
-        
         # Test with a value that causes OverflowError (infinity)
-        invalid_timestamp = float('inf')
-        stderr_capture = io.StringIO()
-        with redirect_stderr(stderr_capture):
-            result = clean_value("events", "time_fired", invalid_timestamp)
+        invalid_timestamp = float("inf")
+        result = clean_value("events", "time_fired", invalid_timestamp)
         # Should return original value with warning
         assert result == invalid_timestamp
-        # Check that warning was printed
-        stderr_output = stderr_capture.getvalue()
-        assert "Warning" in stderr_output or "invalid timestamp" in stderr_output
+        # Check that warning was logged
+        assert "invalid timestamp" in caplog.text
 
     def test_non_timestamp_columns_float_not_converted(self):
         """Test that float values in non-timestamp columns are not converted."""
@@ -178,4 +164,3 @@ class TestCleanBatchValues:
         rows = []
         result = clean_batch_values(table, columns, rows)
         assert result == []
-

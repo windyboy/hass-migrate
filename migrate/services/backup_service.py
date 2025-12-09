@@ -73,6 +73,9 @@ class BackupService:
 
         stdout, stderr = await process.communicate()
 
+        # Clean up PGPASSWORD from environment
+        del env["PGPASSWORD"]
+
         if process.returncode != 0:
             error_msg = stderr.decode() if stderr else "Unknown error"
             raise RuntimeError(f"Backup failed: {error_msg}")
@@ -120,6 +123,9 @@ class BackupService:
         )
 
         stdout, stderr = await process.communicate()
+
+        # Clean up PGPASSWORD from environment
+        del env["PGPASSWORD"]
 
         if process.returncode != 0:
             error_msg = stderr.decode() if stderr else "Unknown error"

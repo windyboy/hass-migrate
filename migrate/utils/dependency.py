@@ -81,9 +81,12 @@ class DependencyAnalyzer:
             level = [t for t in remaining if in_degree.get(t, 0) == 0]
 
             if not level:
-                # Handle circular dependencies or remaining tables
-                # Add remaining tables as a level (may cause issues, but better than infinite loop)
-                level = list(remaining)
+                # Circular dependency detected - cannot determine safe migration order
+                remaining_tables = list(remaining)
+                raise ValueError(
+                    f"Circular dependency detected among tables: {remaining_tables}. "
+                    "Cannot determine safe migration order. Please check foreign key relationships."
+                )
 
             levels.append(level)
             remaining -= set(level)
@@ -113,4 +116,3 @@ class DependencyAnalyzer:
             if table in deps:
                 self_refs.append(table)
         return self_refs
-

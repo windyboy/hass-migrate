@@ -38,10 +38,11 @@ class TestDependencyAnalyzer:
         # Create dict-like objects that support [] access like asyncpg.Record
         class MockRecord(dict):
             """Mock record that behaves like asyncpg.Record."""
+
             def __init__(self, **kwargs):
                 super().__init__(**kwargs)
                 self.__dict__.update(kwargs)
-        
+
         mock_rows = [
             MockRecord(table_name="events", foreign_table_name="event_types"),
             MockRecord(table_name="events", foreign_table_name="event_data"),
@@ -66,10 +67,11 @@ class TestDependencyAnalyzer:
         # Create dict-like objects that support [] access like asyncpg.Record
         class MockRecord(dict):
             """Mock record that behaves like asyncpg.Record."""
+
             def __init__(self, **kwargs):
                 super().__init__(**kwargs)
                 self.__dict__.update(kwargs)
-        
+
         mock_rows = [
             MockRecord(table_name="events", foreign_table_name="event_types"),
             MockRecord(table_name="events", foreign_table_name="event_types"),
@@ -150,7 +152,7 @@ class TestDependencyAnalyzer:
         assert states_level > events_level
 
     def test_topological_sort_circular_dependencies(self):
-        """Test topological sort handles circular dependencies gracefully."""
+        """Test topological sort raises error on circular dependencies."""
         analyzer = DependencyAnalyzer()
         tables = ["table_a", "table_b"]
         dependencies = {
@@ -158,11 +160,8 @@ class TestDependencyAnalyzer:
             "table_b": ["table_a"],  # Circular dependency
         }
 
-        result = analyzer.topological_sort(tables, dependencies)
-
-        # Should complete without infinite loop
-        assert len(result) >= 1
-        assert all(table in [t for level in result for t in level] for table in tables)
+        with pytest.raises(ValueError, match="Circular dependency detected"):
+            analyzer.topological_sort(tables, dependencies)
 
     def test_get_self_referencing_tables_none(self):
         """Test identifying self-referencing tables when none exist."""
@@ -188,4 +187,3 @@ class TestDependencyAnalyzer:
 
         assert "states" in result
         assert "events" not in result
-

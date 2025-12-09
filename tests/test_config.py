@@ -95,17 +95,3 @@ class TestDBConfig:
             with patch("sys.stderr.write"):
                 DBConfig()
                 mock_exit.assert_called_once_with(1)
-
-    def test_mask_password_short(self):
-        """Test password masking for short passwords."""
-        config = DBConfig.__new__(DBConfig)  # Skip __init__
-        assert config.mask_password("ab") == "***"
-        assert config.mask_password("abc") == "***"
-        assert config.mask_password("abcd") == "***"
-
-    def test_mask_password_long(self):
-        """Test password masking for longer passwords."""
-        config = DBConfig.__new__(DBConfig)  # Skip __init__
-        assert config.mask_password("password123") == "pa***23"
-        assert config.mask_password("verylongpassword") == "ve***rd"
-

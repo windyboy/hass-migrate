@@ -33,7 +33,9 @@ class DBConfig:
             self.pg_user = self._require_env("PG_USER")
             self.pg_password = self._require_env("PG_PASSWORD")
             self.pg_db = self._require_env("PG_DB")
-            self.pg_schema = os.getenv("PG_SCHEMA", "hass")  # Default to 'hass' for backward compatibility
+            self.pg_schema = os.getenv(
+                "PG_SCHEMA", "hass"
+            )  # Default to 'hass' for backward compatibility
         except ConfigError as e:
             sys.stderr.write(f"❌ Configuration Error: {e}\n")
             sys.stderr.write("\nPlease ensure your .env file is properly configured.\n")
@@ -61,9 +63,3 @@ class DBConfig:
             return port
         except ValueError:
             raise ConfigError(f"{key}={value} is not a valid integer")
-
-    def mask_password(self, password: str) -> str:
-        """Mask password for safe logging."""
-        if len(password) <= 4:
-            return "***"
-        return password[:2] + "***" + password[-2:]

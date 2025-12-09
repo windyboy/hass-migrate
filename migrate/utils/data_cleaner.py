@@ -6,6 +6,11 @@ import sys
 from datetime import datetime, timezone
 from typing import Any
 
+from migrate.utils.logger import StructuredLogger
+
+# Initialize logger
+logger = StructuredLogger("data_cleaner")
+
 # Fields that need int→bool conversion (table_name, column_name)
 BOOL_COLUMNS = {
     ("recorder_runs", "closed_incorrect"),
@@ -77,9 +82,8 @@ def clean_value(table: str, column: str, value: Any) -> Any:
             if value in (0, 1):
                 return bool(value)
             # Log warning for unexpected integer values
-            print(
-                f"Warning: {table}.{column} has non‑boolean integer {value!r}, keeping as‑is",
-                file=sys.stderr,
+            logger.warning(
+                f"{table}.{column} has non-boolean integer {value!r}, keeping as-is"
             )
         # Shouldn't reach here, but if we do it indicates data anomaly
         return value
@@ -102,9 +106,8 @@ def clean_value(table: str, column: str, value: Any) -> Any:
                 tzinfo=None
             )
         except (ValueError, OSError, OverflowError) as e:
-            print(
-                f"Warning: {table}.{column} has invalid timestamp {value!r}: {e}, keeping as‑is",
-                file=sys.stderr,
+            logger.warning(
+                f"{table}.{column} has invalid timestamp {value!r}: {e}, keeping as-is"
             )
             return value
 
@@ -129,9 +132,8 @@ def clean_batch_values(
     cleaned_batch = []
     for row in rows:
         if len(row) != len(columns):
-            print(
-                f"Warning: {table} row has {len(row)} columns, expected {len(columns)}. Skipping row.",
-                file=sys.stderr,
+            logger.warning(
+                f"{table} row has {len(row)} columns, expected {len(columns)}. Skipping row."
             )
             continue
         cleaned_row = [
