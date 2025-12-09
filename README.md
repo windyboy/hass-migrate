@@ -79,46 +79,109 @@ hamigrate check
 
 This will test connections to both MySQL and PostgreSQL databases.
 
-### 2. Validate Migration (After Migration)
+### 2. List Available Tables
 
-After completing a migration, validate data integrity:
+View all tables that can be migrated:
+
+```bash
+hamigrate tables
+```
+
+### 3. Check Migration Status
+
+Compare row counts between MySQL and PostgreSQL:
+
+```bash
+hamigrate status
+```
+
+### 4. View Migration Progress
+
+Check the progress of an ongoing or interrupted migration:
+
+```bash
+hamigrate progress
+```
+
+### 5. Schema Management
+
+Apply PostgreSQL schema:
+
+```bash
+hamigrate schema apply
+hamigrate schema apply --force  # Force recreate schema
+```
+
+Drop schema (dangerous operation):
+
+```bash
+hamigrate schema drop --force
+```
+
+### 6. Migrate Data
+
+#### Migrate a Single Table
+
+Test the migration process with a single table:
+
+```bash
+hamigrate migrate table event_data --force
+```
+
+**Options:**
+- `--force` / `-f`: Skip confirmation prompts and truncate tables
+- `--batch-size`: Number of rows per batch (default: 20,000)
+- `--schema`: PostgreSQL schema name (default: PG_SCHEMA env var or 'hass')
+
+#### Migrate All Tables
+
+Perform a complete migration of all Home Assistant recorder tables:
+
+```bash
+hamigrate migrate all --force
+```
+
+**Options:**
+- `--force` / `-f`: Skip confirmation prompts and truncate tables
+- `--batch-size`: Number of rows per batch (default: 20,000)
+- `--max-concurrent`: Maximum number of tables to migrate concurrently (default: 4)
+- `--backup`: Create backup before migration
+- `--schema`: PostgreSQL schema name (default: PG_SCHEMA env var or 'hass')
+
+**Example with custom batch size:**
+```bash
+hamigrate migrate all --force --batch-size 50000
+```
+
+#### Resume Interrupted Migration
+
+Resume from a previous interrupted migration:
+
+```bash
+hamigrate migrate resume
+```
+
+**Options:**
+- `--batch-size`: Number of rows per batch (default: 20,000)
+- `--max-concurrent`: Maximum number of tables to migrate concurrently (default: 4)
+- `--schema`: PostgreSQL schema name (default: PG_SCHEMA env var or 'hass')
+
+### 7. Validate Migration
+
+Validate all tables:
 
 ```bash
 hamigrate validate
 ```
 
-This compares row counts between MySQL and PostgreSQL for all tables.
-
-### 3. Test Migration (Single Table)
-
-Test the migration process with a single table:
+Validate a single table:
 
 ```bash
-hamigrate migrate-event-data --force
-```
-
-### 4. Full Migration
-
-Perform a complete migration of all Home Assistant recorder tables:
-
-```bash
-hamigrate migrate-all --force
+hamigrate validate table event_data
 ```
 
 **Options:**
-- `--force` / `-f`: Skip confirmation prompt (truncates target tables)
-- `--resume`: Resume from previous interrupted migration
-- `--batch-size`: Set custom batch size (default: 20,000 rows)
-
-**Example with custom batch size:**
-```bash
-hamigrate migrate-all --force --batch-size 50000
-```
-
-**Resume interrupted migration:**
-```bash
-hamigrate migrate-all --resume
-```
+- `--schema`: PostgreSQL schema name (default: PG_SCHEMA env var or 'hass')
 
 ## Supported Tables
 
@@ -258,12 +321,23 @@ The tool handles these MySQL → PostgreSQL conversions:
 ### Running Tests
 
 ```bash
-# Install dev dependencies
-uv sync
+# Install dependencies including test tools
+uv sync --extra test
 
-# Run validation after migration
-hamigrate validate
+# Run all unit tests
+uv run pytest
+
+# Run tests with verbose output
+uv run pytest -v
+
+# Run specific test file
+uv run pytest tests/test_config.py
+
+# Run with coverage (if pytest-cov is installed)
+uv run pytest --cov=migrate --cov-report=html
 ```
+
+### Testing
 
 ### Project Structure
 

@@ -15,7 +15,19 @@ hamigrate migrate-event-data      # Test migration of single table
 ```
 
 ### Testing
-No automated test framework configured. Manual testing via CLI commands recommended.
+```bash
+# Run all unit tests
+uv run pytest
+
+# Run with verbose output
+uv run pytest -v
+```
+Unit tests are located in the `tests/` directory and cover:
+- Configuration validation (`test_config.py`)
+- Data cleaning utilities (`test_data_cleaner.py`)
+- Dependency analysis (`test_dependency.py`)
+- Exception handling (`test_exceptions.py`)
+- Data models (`test_table_metadata.py`)
 
 ## Code Style Guidelines
 
