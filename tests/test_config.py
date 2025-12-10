@@ -20,7 +20,7 @@ class TestDBConfig:
         # Verify a few key fields to ensure mapping works
         assert config.mysql_host == "localhost"
         assert config.pg_port == 5432
-        assert config.pg_schema == "hass"
+        assert config.pg_schema == "public"
 
     def test_init_with_missing_mysql_host(self, mock_empty_env):
         """Test DBConfig initialization with missing MYSQL_HOST."""
@@ -34,10 +34,10 @@ class TestDBConfig:
             DBConfig()
 
     def test_pg_schema_default(self, mock_env_vars):
-        """Test that pg_schema defaults to 'hass' when not set."""
+        """Test that pg_schema defaults to 'public' when not set."""
         del os.environ["PG_SCHEMA"]
         config = DBConfig()
-        assert config.pg_schema == "hass"
+        assert config.pg_schema == "public"
 
     def test_pg_schema_custom(self, mock_env_vars):
         """Test that pg_schema uses custom value when set."""

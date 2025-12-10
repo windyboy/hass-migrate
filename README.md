@@ -1,19 +1,41 @@
 # Home Assistant MySQL to PostgreSQL Migration Tool
 
-> **Status**: Beta. Core migration logic is functional and tested. Please backup your data before use.
+> **⚠️ DEVELOPMENT STATUS: EARLY PROTOTYPE**
+> 
+> **🚧 Migration engine and CLI are NOT yet fully implemented. DO NOT use in production.**
+> 
+> **Current Status:**
+> - ✅ Configuration validation and PostgreSQL schema are complete
+> - ✅ Basic CLI commands (check, tables, status) are functional
+> - ❌ Data migration commands are not yet implemented
+> - ❌ Progress tracking, resume, and validation are planned but not implemented
+> 
+> This README describes the **planned architecture**. See "What's Actually Working" below.
 
-A robust tool for migrating Home Assistant Recorder data from MySQL/MariaDB to PostgreSQL with data integrity validation and type conversion.
+---
 
-## Features
+## What's Actually Working (v0.1.0-dev)
 
-- ✅ High-performance bulk migration with configurable batch sizes
-- ✅ Schema-aware field type transformation (MySQL → PostgreSQL)
-- ✅ Data cleaning (null bytes, empty strings, timezone conversion)
-- ✅ Primary key sequence correction
-- ✅ Built-in validation and consistency checks
-- ✅ Resume capability for interrupted migrations
-- ✅ Concurrent table migration for improved performance
-- ✅ Progress tracking with atomic updates
+### ✅ Currently Implemented
+- Configuration loading and validation (`hass_migrate/config.py`)
+- PostgreSQL schema definition (`hass_migrate/schema/postgres_schema.sql`)
+- Database connection testing (`hamigrate check`)
+- Table listing (`hamigrate tables`)
+- Migration status checking (`hamigrate status`)
+- Unit tests for configuration module
+
+### ⏳ Planned Features (Not Yet Available)
+
+The following features are **planned for future releases**:
+
+- High-performance bulk migration with configurable batch sizes
+- Schema-aware field type transformation (MySQL → PostgreSQL)
+- Data cleaning (null bytes, empty strings, timezone conversion)
+- Primary key sequence correction
+- Built-in validation and consistency checks
+- Resume capability for interrupted migrations
+- Concurrent table migration for improved performance
+- Progress tracking with atomic updates
 
 ## Why PostgreSQL?
 
@@ -34,7 +56,8 @@ Home Assistant recommends PostgreSQL for larger installations, particularly for 
 ### Setup
 
 ```bash
-# Clone or navigate to the project directory
+# Clone the repository
+git clone https://github.com/windyboy/hass-migrate.git
 cd hass-migrate
 
 # Install dependencies
@@ -65,9 +88,12 @@ PG_PORT=5432
 PG_USER=homeassistant
 PG_PASSWORD=your_postgres_password
 PG_DB=homeassistant
+PG_SCHEMA=public  # Default schema (use 'public' for standard HA setup)
 ```
 
 ## Usage
+
+> **Note:** Currently only commands 1-3 below are implemented. Migration and validation commands are planned for future releases.
 
 ### 1. Test Database Connections
 
@@ -103,11 +129,12 @@ Check the progress of an ongoing or interrupted migration:
 hamigrate progress
 ```
 
-### 5. Schema Management
+### 5. Schema Management (⏳ Planned)
 
 Apply PostgreSQL schema:
 
 ```bash
+# Not yet implemented
 hamigrate schema apply
 hamigrate schema apply --force  # Force recreate schema
 ```
@@ -115,10 +142,11 @@ hamigrate schema apply --force  # Force recreate schema
 Drop schema (dangerous operation):
 
 ```bash
+# Not yet implemented
 hamigrate schema drop --force
 ```
 
-### 6. Migrate Data
+### 6. Migrate Data (⏳ Planned)
 
 #### Migrate a Single Table
 
@@ -131,7 +159,7 @@ hamigrate migrate table event_data --force
 **Options:**
 - `--force` / `-f`: Skip confirmation prompts and truncate tables
 - `--batch-size`: Number of rows per batch (default: 20,000)
-- `--schema`: PostgreSQL schema name (default: PG_SCHEMA env var or 'hass')
+- `--schema`: PostgreSQL schema name (default: PG_SCHEMA env var or 'public')
 
 #### Migrate All Tables
 
@@ -146,7 +174,7 @@ hamigrate migrate all --force
 - `--batch-size`: Number of rows per batch (default: 20,000)
 - `--max-concurrent`: Maximum number of tables to migrate concurrently (default: 4)
 - `--backup`: Create backup before migration
-- `--schema`: PostgreSQL schema name (default: PG_SCHEMA env var or 'hass')
+- `--schema`: PostgreSQL schema name (default: PG_SCHEMA env var or 'public')
 
 **Example with custom batch size:**
 ```bash
@@ -164,24 +192,26 @@ hamigrate migrate resume
 **Options:**
 - `--batch-size`: Number of rows per batch (default: 20,000)
 - `--max-concurrent`: Maximum number of tables to migrate concurrently (default: 4)
-- `--schema`: PostgreSQL schema name (default: PG_SCHEMA env var or 'hass')
+- `--schema`: PostgreSQL schema name (default: PG_SCHEMA env var or 'public')
 
-### 7. Validate Migration
+### 7. Validate Migration (⏳ Planned)
 
 Validate all tables:
 
 ```bash
+# Not yet implemented
 hamigrate validate
 ```
 
 Validate a single table:
 
 ```bash
+# Not yet implemented
 hamigrate validate table event_data
 ```
 
 **Options:**
-- `--schema`: PostgreSQL schema name (default: PG_SCHEMA env var or 'hass')
+- `--schema`: PostgreSQL schema name (default: PG_SCHEMA env var or 'public')
 
 ## Supported Tables
 
@@ -386,12 +416,17 @@ For issues or questions:
 
 ## Version
 
-Current version: 0.1.0
+Current version: 0.1.0-dev
 
-Features in this version:
-- Complete table migration
-- Data type conversion
-- Progress tracking and resume
-- Validation command
-- Concurrent table migration
-- Robust error handling
+Implemented in this version:
+- ✅ Configuration validation
+- ✅ Database connection testing
+- ✅ PostgreSQL schema SQL
+- ✅ Table listing and status checking
+
+Planned for v0.2.0:
+- ⏳ Data migration engine
+- ⏳ Schema management commands
+- ⏳ Progress tracking and resume
+- ⏳ Validation commands
+- ⏳ Concurrent table migration

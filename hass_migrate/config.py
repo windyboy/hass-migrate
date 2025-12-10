@@ -33,8 +33,8 @@ class DBConfig:
         self.pg_password = self._require_env("PG_PASSWORD")
         self.pg_db = self._require_env("PG_DB")
         self.pg_schema = os.getenv(
-            "PG_SCHEMA", "hass"
-        )  # Default to 'hass' for backward compatibility
+            "PG_SCHEMA", "public"
+        )  # Default to 'public' for Home Assistant compatibility
 
     def _require_env(self, key: str) -> str:
         """Get required environment variable or raise ConfigError."""

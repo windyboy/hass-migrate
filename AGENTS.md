@@ -3,10 +3,14 @@
 ## Build/Lint/Test Commands
 ```bash
 uv sync                                    # Install dependencies
-hamigrate check                           # Test database connections
-hamigrate migrate-all --force            # Full migration (truncates target DB)
 uv run pytest                             # Run all unit tests
 uv run pytest tests/test_file.py::TestClass::test_method  # Run single test
+
+# Note: Migration commands are partially implemented
+hamigrate check                           # Test database connections (implemented)
+hamigrate tables                          # List tables (implemented)
+hamigrate status                          # Check migration status (implemented)
+# hamigrate migrate all --force           # Full migration (not yet implemented)
 ```
 
 ## Code Style Guidelines
