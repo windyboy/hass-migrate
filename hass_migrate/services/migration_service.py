@@ -15,6 +15,34 @@ from hass_migrate.utils.data_cleaner import clean_batch_values
 from hass_migrate.utils.dependency import DependencyAnalyzer
 from hass_migrate.utils.logger import StructuredLogger
 from hass_migrate.utils.progress_tracker import ProgressTracker
+from hass_migrate.services.backup_service import BackupService
+from rich.console import Console
+
+# Tables with unique constraints
+UNIQUE_CONSTRAINTS: Dict[str, List[List[str]]] = {
+    "event_types": [["event_type"]],
+    "states_meta": [["entity_id"]],
+    "statistics_meta": [["statistic_id"]],
+    "statistics": [["metadata_id", "start_ts"]],
+    "statistics_short_term": [["metadata_id", "start_ts"]],
+}
+
+# Valid table names (copied from cli.constants to avoid circular import)
+VALID_TABLES = [
+    "event_types", "event_data", "events", "state_attributes", "states_meta",
+    "states", "statistics_meta", "statistics", "statistics_short_term",
+    "recorder_runs", "statistics_runs", "schema_changes", "migration_changes"
+]
+
+# Tables with unique constraints
+UNIQUE_CONSTRAINTS: Dict[str, List[List[str]]] = {
+    "event_types": [["event_type"]],
+    "states_meta": [["entity_id"]],
+    "statistics_meta": [["statistic_id"]],
+    "statistics": [["metadata_id", "start_ts"]],
+    "statistics_short_term": [["metadata_id", "start_ts"]],
+}
+
 
 # Tables with unique constraints
 UNIQUE_CONSTRAINTS: Dict[str, List[List[str]]] = {
@@ -49,6 +77,7 @@ class MigrationService:
         self.pg_client = pg_client
         self.dependency_analyzer = dependency_analyzer
         self.logger = logger
+        self.console = Console()
         self.progress: Dict[str, Dict[str, Any]] = {}
 
     def load_progress(self, progress_data: Dict[str, Dict[str, Any]]) -> None:
@@ -90,6 +119,13 @@ class MigrationService:
         Returns:
             Migration result
         """
+        # Validate table name
+        if table not in VALID_TABLES:
+            error_msg = f"Invalid table name '{table}'. Valid tables: {', '.join(VALID_TABLES)}"
+            self.logger.error(error_msg)
+            self.console.print(f"[red]Error: {error_msg}[/red]")
+            return MigrationResult(table=table, rows_migrated=0, success=False, duration=0.0, errors=[error_msg])
+
         start_time = time.time()
         errors: List[str] = []
 
@@ -171,6 +207,7 @@ class MigrationService:
                         error_msg = f"Error inserting batch for {table}: {e}"
                         errors.append(error_msg)
                         self.logger.error(error_msg)
+                        self.console.print(f"[red]{error_msg}[/red]")
 
                     # Log progress periodically
                     if batch_count % 10 == 0:
@@ -239,6 +276,8 @@ class MigrationService:
         self,
         all_tables: List[tuple[str, List[str]]],
         config: MigrationConfig,
+        backup_service: Optional[BackupService] = None,
+        db_config: Optional[Any] = None,
     ) -> List[MigrationResult]:
         """
         Migrate all tables in dependency order.
@@ -246,10 +285,20 @@ class MigrationService:
         Args:
             all_tables: List of (table_name, columns) tuples
             config: Migration configuration
+            backup_service: Optional backup service for pre-migration backup
+            db_config: Database config for backup
 
         Returns:
             List of migration results
         """
+        # Create backup if service provided
+        if backup_service and db_config:
+            try:
+                backup_path = await backup_service.create_backup(db_config)
+                self.console.print(f"[green]Backup created: {backup_path}[/green]")
+            except Exception as e:
+                self.console.print(f"[yellow]Backup failed: {e}, continuing...[/yellow]")
+
         # Analyze dependencies
         deps = await self.dependency_analyzer.analyze_dependencies(
             self.pg_client.pool, schema=config.schema

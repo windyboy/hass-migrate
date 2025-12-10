@@ -1,16 +1,16 @@
 # Home Assistant MySQL to PostgreSQL Migration Tool
 
-> **⚠️ DEVELOPMENT STATUS: EARLY PROTOTYPE**
+> **⚠️ DEVELOPMENT STATUS: FUNCTIONAL PROTOTYPE**
 > 
-> **🚧 Migration engine and CLI are NOT yet fully implemented. DO NOT use in production.**
+> **✅ Migration engine and CLI are fully implemented. Ready for testing in non-production environments.**
 > 
 > **Current Status:**
 > - ✅ Configuration validation and PostgreSQL schema are complete
 > - ✅ Basic CLI commands (check, tables, status) are functional
-> - ❌ Data migration commands are not yet implemented
-> - ❌ Progress tracking, resume, and validation are planned but not implemented
+> - ✅ Data migration commands are implemented
+> - ✅ Progress tracking, resume, and validation are implemented
 > 
-> This README describes the **planned architecture**. See "What's Actually Working" below.
+> This README describes the **current implementation**. See "What's Actually Working" below.
 
 ---
 
@@ -22,20 +22,26 @@
 - Database connection testing (`hamigrate check`)
 - Table listing (`hamigrate tables`)
 - Migration status checking (`hamigrate status`)
-- Unit tests for configuration module
+- Schema management (`hamigrate schema apply/drop`)
+- High-performance bulk migration with configurable batch sizes
+- Schema-aware migration (uses predefined schemas)
+- Data cleaning (null bytes, via data_cleaner)
+- Primary key sequence correction
+- Resume capability (progress tracking with JSON file)
+- Concurrent table migration (up to 4 tables in parallel)
+- Progress tracking with atomic updates
+- Dependency analysis for table ordering
+- Built-in validation and consistency checks
+- Unit tests for configuration and migration modules
 
 ### ⏳ Planned Features (Not Yet Available)
 
 The following features are **planned for future releases**:
 
-- High-performance bulk migration with configurable batch sizes
-- Schema-aware field type transformation (MySQL → PostgreSQL)
-- Data cleaning (null bytes, empty strings, timezone conversion)
-- Primary key sequence correction
-- Built-in validation and consistency checks
-- Resume capability for interrupted migrations
-- Concurrent table migration for improved performance
-- Progress tracking with atomic updates
+- Enhanced validation with data integrity checks
+- Automatic schema updates for future HA versions
+- Migration dry-run mode for testing
+- Parallel processing optimizations for very large datasets
 
 ## Why PostgreSQL?
 
@@ -129,12 +135,11 @@ Check the progress of an ongoing or interrupted migration:
 hamigrate progress
 ```
 
-### 5. Schema Management (⏳ Planned)
+### 5. Schema Management
 
 Apply PostgreSQL schema:
 
 ```bash
-# Not yet implemented
 hamigrate schema apply
 hamigrate schema apply --force  # Force recreate schema
 ```
@@ -142,11 +147,10 @@ hamigrate schema apply --force  # Force recreate schema
 Drop schema (dangerous operation):
 
 ```bash
-# Not yet implemented
 hamigrate schema drop --force
 ```
 
-### 6. Migrate Data (⏳ Planned)
+### 6. Migrate Data
 
 #### Migrate a Single Table
 
@@ -194,19 +198,17 @@ hamigrate migrate resume
 - `--max-concurrent`: Maximum number of tables to migrate concurrently (default: 4)
 - `--schema`: PostgreSQL schema name (default: PG_SCHEMA env var or 'public')
 
-### 7. Validate Migration (⏳ Planned)
+### 7. Validate Migration
 
 Validate all tables:
 
 ```bash
-# Not yet implemented
 hamigrate validate
 ```
 
 Validate a single table:
 
 ```bash
-# Not yet implemented
 hamigrate validate table event_data
 ```
 
