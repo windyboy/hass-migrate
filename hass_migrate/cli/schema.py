@@ -3,10 +3,10 @@ import os
 
 import typer
 
-from migrate.config import DBConfig
-from migrate.database.pg_client import PGClient
-from migrate.cli.constants import SCHEMA_FILE, console
-from migrate.cli.options import get_force_option, get_schema_option, get_schema_name
+from hass_migrate.config import DBConfig
+from hass_migrate.database.pg_client import PGClient
+from hass_migrate.cli.constants import SCHEMA_FILE, console
+from hass_migrate.cli.options import get_force_option, get_schema_option, get_schema_name
 
 
 async def ensure_schema(pg_client: PGClient, force: bool = False):

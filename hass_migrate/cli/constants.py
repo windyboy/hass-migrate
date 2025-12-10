@@ -3,7 +3,7 @@ from typing import List, Tuple
 
 from rich.console import Console
 
-from migrate.utils.logger import StructuredLogger
+from hass_migrate.utils.logger import StructuredLogger
 
 # Path to schema file relative to this file's directory
 SCHEMA_FILE = os.path.join(os.path.dirname(os.path.dirname(__file__)), "schema", "postgres_schema.sql")

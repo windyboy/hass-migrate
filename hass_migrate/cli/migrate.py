@@ -5,15 +5,15 @@ import time
 
 import typer
 
-from migrate.config import DBConfig
-from migrate.database.mysql_client import MySQLClient
-from migrate.database.pg_client import PGClient
-from migrate.models.table_metadata import MigrationConfig
-from migrate.services.backup_service import BackupService
-from migrate.services.migration_service import MigrationService
-from migrate.utils.dependency import DependencyAnalyzer
-from migrate.cli.constants import TABLES, PROGRESS_FILE, console, logger
-from migrate.cli.options import (
+from hass_migrate.config import DBConfig
+from hass_migrate.database.mysql_client import MySQLClient
+from hass_migrate.database.pg_client import PGClient
+from hass_migrate.models.table_metadata import MigrationConfig
+from hass_migrate.services.backup_service import BackupService
+from hass_migrate.services.migration_service import MigrationService
+from hass_migrate.utils.dependency import DependencyAnalyzer
+from hass_migrate.cli.constants import TABLES, PROGRESS_FILE, console, logger
+from hass_migrate.cli.options import (
     get_force_option,
     get_batch_size_option,
     validate_batch_size,
@@ -22,7 +22,7 @@ from migrate.cli.options import (
     get_schema_name,
     get_table_info,
 )
-from migrate.cli.schema import ensure_schema
+from hass_migrate.cli.schema import ensure_schema
 
 
 def register_migrate_commands(migrate_app: typer.Typer) -> None:

@@ -4,8 +4,8 @@ from typing import List, Optional, Tuple
 
 import typer
 
-from migrate.config import DBConfig
-from migrate.cli.constants import TABLES
+from hass_migrate.config import DBConfig
+from hass_migrate.cli.constants import TABLES
 
 
 def get_schema_option() -> typer.Option:

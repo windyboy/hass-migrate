@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 
 import pytest
 
-from migrate.utils.data_cleaner import clean_batch_values, clean_value
+from hass_migrate.utils.data_cleaner import clean_batch_values, clean_value
 
 
 class TestCleanValue:

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from migrate.models.table_metadata import (
+from hass_migrate.models.table_metadata import (
     MigrationConfig,
     MigrationResult,
     TableMetadata,

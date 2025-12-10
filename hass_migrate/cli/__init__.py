@@ -1,6 +1,6 @@
 import typer
 
-from . import migrate, schema, utils, validate
+from . import migrate as migrate_cmd, schema, utils, validate
 
 # Create main app
 app = typer.Typer(help="Home Assistant MySQL → PostgreSQL migration tool")
@@ -19,7 +19,7 @@ app.add_typer(validate_app, name="validate")
 schema.register_schema_commands(schema_app)
 utils.register_utils_commands(app)
 validate.register_validate_commands(validate_app)
-migrate.register_migrate_commands(migrate_app)
+migrate_cmd.register_migrate_commands(migrate_app)
 
 __all__ = ["app"]
 

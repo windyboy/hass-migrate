@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from migrate.exceptions import (
+from hass_migrate.exceptions import (
     BackupError,
     DatabaseConnectionError,
     DataValidationError,

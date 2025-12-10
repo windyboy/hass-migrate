@@ -5,12 +5,12 @@ from typing import Optional
 
 import typer
 
-from migrate.config import DBConfig
-from migrate.database.mysql_client import MySQLClient
-from migrate.database.pg_client import PGClient
-from migrate.services.validation_service import ValidationService
-from migrate.cli.constants import TABLES, console, logger
-from migrate.cli.options import get_schema_option, get_schema_name, get_table_info
+from hass_migrate.config import DBConfig
+from hass_migrate.database.mysql_client import MySQLClient
+from hass_migrate.database.pg_client import PGClient
+from hass_migrate.services.validation_service import ValidationService
+from hass_migrate.cli.constants import TABLES, console, logger
+from hass_migrate.cli.options import get_schema_option, get_schema_name, get_table_info
 
 
 def _validate_all_impl(schema: Optional[str] = None):

@@ -7,7 +7,7 @@ from typing import Any, List, Optional
 import asyncpg
 from asyncpg import Connection, Pool
 
-from migrate.config import DBConfig
+from hass_migrate.config import DBConfig
 
 
 class PGClient:

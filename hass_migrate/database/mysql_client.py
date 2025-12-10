@@ -6,7 +6,7 @@ from typing import Any, List, Optional, Sequence
 
 import mysql.connector
 
-from migrate.config import DBConfig
+from hass_migrate.config import DBConfig
 
 
 class MySQLClient:

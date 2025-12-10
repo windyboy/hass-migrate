@@ -4,10 +4,10 @@ from __future__ import annotations
 
 from typing import List
 
-from migrate.database.mysql_client import MySQLClient
-from migrate.database.pg_client import PGClient
-from migrate.models.table_metadata import ValidationResult
-from migrate.utils.logger import StructuredLogger
+from hass_migrate.database.mysql_client import MySQLClient
+from hass_migrate.database.pg_client import PGClient
+from hass_migrate.models.table_metadata import ValidationResult
+from hass_migrate.utils.logger import StructuredLogger
 
 
 class ValidationService:

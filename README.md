@@ -1,6 +1,8 @@
 # Home Assistant MySQL to PostgreSQL Migration Tool
 
-A robust, production-ready tool for migrating Home Assistant Recorder data from MySQL/MariaDB to PostgreSQL with data integrity validation and type conversion.
+> **Status**: Beta. Core migration logic is functional and tested. Please backup your data before use.
+
+A robust tool for migrating Home Assistant Recorder data from MySQL/MariaDB to PostgreSQL with data integrity validation and type conversion.
 
 ## Features
 

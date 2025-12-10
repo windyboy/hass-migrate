@@ -5,12 +5,12 @@ import os
 import typer
 from rich.table import Table
 
-from migrate.config import DBConfig
-from migrate.database.mysql_client import MySQLClient
-from migrate.database.pg_client import PGClient
-from migrate.services.validation_service import ValidationService
-from migrate.cli.constants import TABLES, PROGRESS_FILE, console, logger
-from migrate.cli.options import get_schema_option, get_schema_name
+from hass_migrate.config import DBConfig
+from hass_migrate.database.mysql_client import MySQLClient
+from hass_migrate.database.pg_client import PGClient
+from hass_migrate.services.validation_service import ValidationService
+from hass_migrate.cli.constants import TABLES, PROGRESS_FILE, console, logger
+from hass_migrate.cli.options import get_schema_option, get_schema_name
 
 
 def register_utils_commands(app: typer.Typer) -> None:

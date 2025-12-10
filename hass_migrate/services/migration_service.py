@@ -8,13 +8,13 @@ from typing import Any, Dict, List, Optional
 
 import asyncpg
 
-from migrate.database.mysql_client import MySQLClient
-from migrate.database.pg_client import PGClient
-from migrate.models.table_metadata import MigrationConfig, MigrationResult
-from migrate.utils.data_cleaner import clean_batch_values
-from migrate.utils.dependency import DependencyAnalyzer
-from migrate.utils.logger import StructuredLogger
-from migrate.utils.progress_tracker import ProgressTracker
+from hass_migrate.database.mysql_client import MySQLClient
+from hass_migrate.database.pg_client import PGClient
+from hass_migrate.models.table_metadata import MigrationConfig, MigrationResult
+from hass_migrate.utils.data_cleaner import clean_batch_values
+from hass_migrate.utils.dependency import DependencyAnalyzer
+from hass_migrate.utils.logger import StructuredLogger
+from hass_migrate.utils.progress_tracker import ProgressTracker
 
 # Tables with unique constraints
 UNIQUE_CONSTRAINTS: Dict[str, List[List[str]]] = {

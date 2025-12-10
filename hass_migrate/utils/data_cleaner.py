@@ -6,7 +6,7 @@ import sys
 from datetime import datetime, timezone
 from typing import Any
 
-from migrate.utils.logger import StructuredLogger
+from hass_migrate.utils.logger import StructuredLogger
 
 # Initialize logger
 logger = StructuredLogger("data_cleaner")

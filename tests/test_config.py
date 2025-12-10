@@ -8,7 +8,7 @@ from unittest.mock import patch
 
 import pytest
 
-from migrate.config import ConfigError, DBConfig
+from hass_migrate.config import ConfigError, DBConfig
 
 
 class TestDBConfig:
@@ -31,18 +31,14 @@ class TestDBConfig:
 
     def test_init_with_missing_mysql_host(self, mock_empty_env):
         """Test DBConfig initialization with missing MYSQL_HOST."""
-        with patch("sys.exit") as mock_exit:
-            with patch("sys.stderr.write"):
-                DBConfig()
-                mock_exit.assert_called_once_with(1)
+        with pytest.raises(ConfigError, match="Missing required environment variable: MYSQL_HOST"):
+            DBConfig()
 
     def test_init_with_missing_pg_password(self, mock_env_vars):
         """Test DBConfig initialization with missing PG_PASSWORD."""
         del os.environ["PG_PASSWORD"]
-        with patch("sys.exit") as mock_exit:
-            with patch("sys.stderr.write"):
-                DBConfig()
-                mock_exit.assert_called_once_with(1)
+        with pytest.raises(ConfigError, match="Missing required environment variable: PG_PASSWORD"):
+            DBConfig()
 
     def test_pg_schema_default(self, mock_env_vars):
         """Test that pg_schema defaults to 'hass' when not set."""
@@ -75,23 +71,17 @@ class TestDBConfig:
     def test_validate_port_invalid_too_high(self, mock_env_vars):
         """Test port validation with port number too high."""
         os.environ["MYSQL_PORT"] = "70000"
-        with patch("sys.exit") as mock_exit:
-            with patch("sys.stderr.write"):
-                DBConfig()
-                mock_exit.assert_called_once_with(1)
+        with pytest.raises(ConfigError, match="is not a valid port number"):
+            DBConfig()
 
     def test_validate_port_invalid_too_low(self, mock_env_vars):
         """Test port validation with port number too low."""
         os.environ["PG_PORT"] = "0"
-        with patch("sys.exit") as mock_exit:
-            with patch("sys.stderr.write"):
-                DBConfig()
-                mock_exit.assert_called_once_with(1)
+        with pytest.raises(ConfigError, match="is not a valid port number"):
+            DBConfig()
 
     def test_validate_port_invalid_non_integer(self, mock_env_vars):
         """Test port validation with non-integer value."""
         os.environ["MYSQL_PORT"] = "not_a_number"
-        with patch("sys.exit") as mock_exit:
-            with patch("sys.stderr.write"):
-                DBConfig()
-                mock_exit.assert_called_once_with(1)
+        with pytest.raises(ConfigError, match="is not a valid integer"):
+            DBConfig()
