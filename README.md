@@ -31,14 +31,13 @@
 - Concurrent table migration (up to 4 tables in parallel)
 - Progress tracking with atomic updates
 - Dependency analysis for table ordering
-- Built-in validation and consistency checks
+- Built-in validation with data sampling and consistency checks
 - Unit tests for configuration and migration modules
 
-### ⏳ Planned Features (Not Yet Available)
+### Future Enhancements
 
 The following features are **planned for future releases**:
 
-- Enhanced validation with data integrity checks
 - Automatic schema updates for future HA versions
 - Migration dry-run mode for testing
 - Parallel processing optimizations for very large datasets
@@ -99,7 +98,7 @@ PG_SCHEMA=public  # Default schema (use 'public' for standard HA setup)
 
 ## Usage
 
-> **Note:** Currently only commands 1-3 below are implemented. Migration and validation commands are planned for future releases.
+> **Note:** All commands are implemented. See below for details.
 
 ### 1. Test Database Connections
 
@@ -418,17 +417,15 @@ For issues or questions:
 
 ## Version
 
-Current version: 0.1.0-dev
+Current version: 0.2.0
 
 Implemented in this version:
 - ✅ Configuration validation
 - ✅ Database connection testing
 - ✅ PostgreSQL schema SQL
 - ✅ Table listing and status checking
-
-Planned for v0.2.0:
-- ⏳ Data migration engine
-- ⏳ Schema management commands
-- ⏳ Progress tracking and resume
-- ⏳ Validation commands
-- ⏳ Concurrent table migration
+- ✅ Data migration engine
+- ✅ Schema management commands
+- ✅ Progress tracking and resume
+- ✅ Validation commands
+- ✅ Concurrent table migration

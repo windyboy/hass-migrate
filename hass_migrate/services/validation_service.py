@@ -7,6 +7,7 @@ from typing import List
 from hass_migrate.database.mysql_client import MySQLClient
 from hass_migrate.database.pg_client import PGClient
 from hass_migrate.models.table_metadata import ValidationResult
+from hass_migrate.utils.data_cleaner import clean_row
 from hass_migrate.utils.logger import StructuredLogger
 
 
@@ -120,12 +121,33 @@ class ValidationService:
         Returns:
             True if samples match
         """
-        # Simplified: just check if we can read from both
-        # In a full implementation, we'd compare actual row data
         try:
-            mysql_count = self.mysql_client.count_rows(table)
-            pg_count = await self.pg_client.count_rows(table)
-            return mysql_count == pg_count
-        except Exception:
+            # Fetch sample from MySQL
+            mysql_conn = self.mysql_client.create_connection()
+            mysql_cursor = mysql_conn.cursor(dictionary=True)
+            mysql_cursor.execute(f"SELECT * FROM {table} ORDER BY id LIMIT %s", (sample_size,))
+            mysql_rows = mysql_cursor.fetchall()
+            mysql_cursor.close()
+            mysql_conn.close()
+
+            # Fetch sample from PostgreSQL
+            pg_conn = await self.pg_client.create_connection()
+            pg_cursor = await pg_conn.cursor()
+            await pg_cursor.execute(f"SELECT * FROM {table} ORDER BY id LIMIT $1", sample_size)
+            pg_rows = await pg_cursor.fetchall()
+            column_names = [desc[0] for desc in pg_cursor.description]
+            await pg_cursor.close()
+            await pg_conn.close()
+
+            # Convert PG rows to dicts
+            pg_rows_dict = [dict(zip(column_names, row)) for row in pg_rows]
+
+            # Clean and compare
+            cleaned_mysql = [clean_row(table, dict(row)) for row in mysql_rows]
+            cleaned_pg = [clean_row(table, row) for row in pg_rows_dict]
+
+            return cleaned_mysql == cleaned_pg
+        except Exception as e:
+            self.logger.error(f"Sample comparison failed for {table}: {e}")
             return False
 
