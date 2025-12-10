@@ -37,7 +37,7 @@ Home Assistant recommends PostgreSQL for optimal performance and stability, espe
 
 ```bash
 # Clone or navigate to the project directory
-cd migrate
+cd hass-migrate
 
 # Install dependencies
 uv sync
@@ -269,7 +269,7 @@ The tool follows this process:
 ### Migration Issues
 
 **Error: "Schema file not found"**
-- The PostgreSQL schema file should be at `migrate/schema/postgres_schema.sql`
+- The PostgreSQL schema file should be at `hass_migrate/schema/postgres_schema.sql`
 - Ensure you're running the latest version
 
 **Slow migration performance:**
@@ -336,7 +336,7 @@ uv run pytest -v
 uv run pytest tests/test_config.py
 
 # Run with coverage (if pytest-cov is installed)
-uv run pytest --cov=migrate --cov-report=html
+uv run pytest --cov=hass_migrate --cov-report=html
 ```
 
 ### Testing
@@ -344,15 +344,18 @@ uv run pytest --cov=migrate --cov-report=html
 ### Project Structure
 
 ```
-migrate/
-├── migrate/
+hass-migrate/
+├── hass_migrate/
 │   ├── __init__.py          # Package initialization
-│   ├── cli.py               # Command-line interface
+│   ├── cli/                 # Command-line interface
 │   ├── config.py            # Configuration and validation
-│   ├── engine.py            # Migration engine
-│   └── schema/
+│   ├── database/            # Database clients
+│   ├── models/              # Data models
+│   ├── schema/
 │       ├── postgres_schema.sql  # PostgreSQL schema (USED)
 │       └── schema.sql           # MySQL schema (reference only)
+│   ├── services/            # Business logic services
+│   └── utils/               # Utility functions
 ├── .env.example             # Environment template
 ├── pyproject.toml           # Project dependencies
 └── README.md                # This file
