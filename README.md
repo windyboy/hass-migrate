@@ -17,13 +17,11 @@ A robust tool for migrating Home Assistant Recorder data from MySQL/MariaDB to P
 
 ## Why PostgreSQL?
 
-Home Assistant recommends PostgreSQL for optimal performance and stability, especially for long-term statistics and time-series data. PostgreSQL offers:
+Home Assistant recommends PostgreSQL for larger installations, particularly for long-term statistics. This tool facilitates the migration from MySQL/MariaDB by handling:
 
-- Better performance for complex queries
-- More robust handling of concurrent operations
-- Advanced indexing capabilities
-- Better support for JSON data
-- Improved reliability and data integrity
+- **Type Conversion**: Maps MySQL types to PostgreSQL equivalents (e.g., `TINYINT(1)` to `BOOLEAN`).
+- **Data Cleaning**: Fixes common issues like null bytes in strings.
+- **Schema Optimization**: Applies a schema optimized for Home Assistant's data structure.
 
 ## Installation
 

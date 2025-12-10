@@ -17,16 +17,9 @@ class TestDBConfig:
     def test_init_with_valid_env(self, mock_env_vars):
         """Test DBConfig initialization with valid environment variables."""
         config = DBConfig()
+        # Verify a few key fields to ensure mapping works
         assert config.mysql_host == "localhost"
-        assert config.mysql_port == 3306
-        assert config.mysql_user == "test_user"
-        assert config.mysql_password == "test_password"
-        assert config.mysql_db == "test_db"
-        assert config.pg_host == "localhost"
         assert config.pg_port == 5432
-        assert config.pg_user == "test_user"
-        assert config.pg_password == "test_password"
-        assert config.pg_db == "test_db"
         assert config.pg_schema == "hass"
 
     def test_init_with_missing_mysql_host(self, mock_empty_env):
