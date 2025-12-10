@@ -11,7 +11,7 @@ from hass_migrate.cli.constants import TABLES
 def get_schema_option() -> typer.Option:
     """Get schema option factory."""
     return typer.Option(
-        None, "--schema", help="PostgreSQL schema name (default: PG_SCHEMA env var or 'hass')"
+        None, "--schema", help="PostgreSQL schema name (default: PG_SCHEMA env var or 'public')"
     )
 
 

@@ -19,10 +19,10 @@ class PGClient:
 
         Args:
             config: Database configuration
-            schema: Schema name (defaults to config.pg_schema or 'hass')
+            schema: Schema name (defaults to config.pg_schema or 'public')
         """
         self.config = config
-        self.schema = schema or getattr(config, 'pg_schema', 'hass')
+        self.schema = schema or getattr(config, 'pg_schema', 'public')
         self.pool: Optional[Pool] = None
 
     async def connect(self, min_size: int = 2, max_size: int = 10) -> None:

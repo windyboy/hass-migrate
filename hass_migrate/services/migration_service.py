@@ -34,25 +34,6 @@ VALID_TABLES = [
     "recorder_runs", "statistics_runs", "schema_changes", "migration_changes"
 ]
 
-# Tables with unique constraints
-UNIQUE_CONSTRAINTS: Dict[str, List[List[str]]] = {
-    "event_types": [["event_type"]],
-    "states_meta": [["entity_id"]],
-    "statistics_meta": [["statistic_id"]],
-    "statistics": [["metadata_id", "start_ts"]],
-    "statistics_short_term": [["metadata_id", "start_ts"]],
-}
-
-
-# Tables with unique constraints
-UNIQUE_CONSTRAINTS: Dict[str, List[List[str]]] = {
-    "event_types": [["event_type"]],
-    "states_meta": [["entity_id"]],
-    "statistics_meta": [["statistic_id"]],
-    "statistics": [["metadata_id", "start_ts"]],
-    "statistics_short_term": [["metadata_id", "start_ts"]],
-}
-
 
 class MigrationService:
     """Service for orchestrating table migrations."""

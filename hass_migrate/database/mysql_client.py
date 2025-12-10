@@ -102,7 +102,10 @@ class MySQLClient:
                     (last_id, batch_size),
                 )
             else:
-                cursor.execute(f"SELECT {col_str} FROM {table} LIMIT %s", (batch_size,))
+                cursor.execute(
+                    f"SELECT {col_str} FROM {table} ORDER BY {primary_key} LIMIT %s",
+                    (batch_size,),
+                )
             return cursor.fetchall()
         finally:
             cursor.close()

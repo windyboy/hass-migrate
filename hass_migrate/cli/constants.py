@@ -126,3 +126,6 @@ TABLES: List[Tuple[str, List[str]]] = [
     ("migration_changes", ["migration_id", "version"]),
 ]
 
+
+# Primary key mapping for tables
+TABLE_PK = {table: columns[0] for table, columns in TABLES}

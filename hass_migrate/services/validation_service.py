@@ -6,6 +6,7 @@ from typing import List
 
 from hass_migrate.database.mysql_client import MySQLClient
 from hass_migrate.database.pg_client import PGClient
+from hass_migrate.cli.constants import TABLE_PK
 from hass_migrate.models.table_metadata import ValidationResult
 from hass_migrate.utils.data_cleaner import clean_row
 from hass_migrate.utils.logger import StructuredLogger
@@ -56,7 +57,7 @@ class ValidationService:
         if row_count_match and mysql_count > 0:
             # Sample some rows and compare
             # This is a simplified version - could be enhanced with checksums
-            sample_match = await self._sample_compare(table, sample_size)
+            sample_match = await self._sample_compare(table, sample_size, TABLE_PK.get(table, 'id'))
 
         return ValidationResult(
             table=table,
@@ -110,13 +111,14 @@ class ValidationService:
 
         return results
 
-    async def _sample_compare(self, table: str, sample_size: int) -> bool:
+    async def _sample_compare(self, table: str, sample_size: int, pk_column: str) -> bool:
         """
         Compare a sample of rows between MySQL and PostgreSQL.
 
         Args:
             table: Table name
             sample_size: Number of rows to sample
+            pk_column: Primary key column name
 
         Returns:
             True if samples match
@@ -125,22 +127,20 @@ class ValidationService:
             # Fetch sample from MySQL
             mysql_conn = self.mysql_client.create_connection()
             mysql_cursor = mysql_conn.cursor(dictionary=True)
-            mysql_cursor.execute(f"SELECT * FROM {table} ORDER BY id LIMIT %s", (sample_size,))
+            mysql_cursor.execute(f"SELECT * FROM {table} ORDER BY {pk_column} LIMIT %s", (sample_size,))
             mysql_rows = mysql_cursor.fetchall()
             mysql_cursor.close()
             mysql_conn.close()
 
             # Fetch sample from PostgreSQL
-            pg_conn = await self.pg_client.create_connection()
-            pg_cursor = await pg_conn.cursor()
-            await pg_cursor.execute(f"SELECT * FROM {table} ORDER BY id LIMIT $1", sample_size)
-            pg_rows = await pg_cursor.fetchall()
-            column_names = [desc[0] for desc in pg_cursor.description]
-            await pg_cursor.close()
-            await pg_conn.close()
+            async with self.pg_client.pool.acquire() as pg_conn:
+                pg_rows = await pg_conn.fetch(f"SELECT * FROM {table} ORDER BY {pk_column} LIMIT $1", sample_size)
+            
+            if not pg_rows:
+                return not mysql_rows  # both empty
 
             # Convert PG rows to dicts
-            pg_rows_dict = [dict(zip(column_names, row)) for row in pg_rows]
+            pg_rows_dict = [dict(row) for row in pg_rows]
 
             # Clean and compare
             cleaned_mysql = [clean_row(table, dict(row)) for row in mysql_rows]

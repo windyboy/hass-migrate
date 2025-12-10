@@ -194,6 +194,7 @@ def register_migrate_commands(migrate_app: typer.Typer) -> None:
                     console.rule(
                         f"[bold green]Migration completed successfully in {duration:.2f}s![/bold green]"
                     )
+                    raise typer.Exit(0)
                 else:
                     console.rule(
                         f"[bold yellow]Migration completed with errors in {duration:.2f}s[/bold yellow]"
@@ -294,6 +295,7 @@ def register_migrate_commands(migrate_app: typer.Typer) -> None:
                     console.rule(
                         f"[bold green]Migration completed successfully in {duration:.2f}s![/bold green]"
                     )
+                    raise typer.Exit(0)
                 else:
                     console.rule(
                         f"[bold yellow]Migration completed with errors in {duration:.2f}s[/bold yellow]"

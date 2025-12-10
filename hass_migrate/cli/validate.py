@@ -43,6 +43,7 @@ def _validate_all_impl(schema: Optional[str] = None):
 
             if all_ok:
                 console.print("[bold green]All tables match![/bold green]")
+                raise typer.Exit(0)
             else:
                 console.print("[bold red]Validation failed: row counts mismatch[/bold red]")
                 raise typer.Exit(1)
