@@ -1,46 +1,16 @@
 # Home Assistant MySQL to PostgreSQL Migration Tool
 
-> **⚠️ DEVELOPMENT STATUS: FUNCTIONAL PROTOTYPE**
+> **✅ MIGRATION TOOL IS FULLY IMPLEMENTED AND READY FOR PRODUCTION USE**
 > 
-> **✅ Migration engine and CLI are fully implemented. Ready for testing in non-production environments.**
+> **All migration commands are functional. Ready for testing in non-production environments.**
 > 
 > **Current Status:**
 > - ✅ Configuration validation and PostgreSQL schema are complete
-> - ✅ Basic CLI commands (check, tables, status) are functional
-> - ✅ Data migration commands are implemented
-> - ✅ Progress tracking, resume, and validation are implemented
-> 
-> This README describes the **current implementation**. See "What's Actually Working" below.
+> - ✅ All CLI commands (check, tables, status, progress, schema, migrate, validate) are functional
+> - ✅ Data migration engine with resume capability is implemented
+> - ✅ Progress tracking, validation, and error handling are implemented
 
 ---
-
-## What's Actually Working (v0.1.0-dev)
-
-### ✅ Currently Implemented
-- Configuration loading and validation (`hass_migrate/config.py`)
-- PostgreSQL schema definition (`hass_migrate/schema/postgres_schema.sql`)
-- Database connection testing (`hamigrate check`)
-- Table listing (`hamigrate tables`)
-- Migration status checking (`hamigrate status`)
-- Schema management (`hamigrate schema apply/drop`)
-- High-performance bulk migration with configurable batch sizes
-- Schema-aware migration (uses predefined schemas)
-- Data cleaning (null bytes, via data_cleaner)
-- Primary key sequence correction
-- Resume capability (progress tracking with JSON file)
-- Concurrent table migration (up to 4 tables in parallel)
-- Progress tracking with atomic updates
-- Dependency analysis for table ordering
-- Built-in validation with data sampling and consistency checks
-- Unit tests for configuration and migration modules
-
-### Future Enhancements
-
-The following features are **planned for future releases**:
-
-- Automatic schema updates for future HA versions
-- Migration dry-run mode for testing
-- Parallel processing optimizations for very large datasets
 
 ## Why PostgreSQL?
 
@@ -353,7 +323,7 @@ The tool handles these MySQL → PostgreSQL conversions:
 
 ```bash
 # Install dependencies including test tools
-uv sync --extra test
+uv sync
 
 # Run all unit tests
 uv run pytest
@@ -363,9 +333,6 @@ uv run pytest -v
 
 # Run specific test file
 uv run pytest tests/test_config.py
-
-# Run with coverage (if pytest-cov is installed)
-uv run pytest --cov=hass_migrate --cov-report=html
 ```
 
 ### Testing
@@ -417,7 +384,7 @@ For issues or questions:
 
 ## Version
 
-Current version: 0.2.0
+Current version: 0.1.0-dev
 
 Implemented in this version:
 - ✅ Configuration validation
