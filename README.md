@@ -75,7 +75,7 @@ PG_SCHEMA=public  # Default schema (use 'public' for standard HA setup)
 Before migrating, verify both databases are accessible:
 
 ```bash
-hamigrate check
+uv run hamigrate check
 ```
 
 This will test connections to both MySQL and PostgreSQL databases.
@@ -85,7 +85,7 @@ This will test connections to both MySQL and PostgreSQL databases.
 View all tables that can be migrated:
 
 ```bash
-hamigrate tables
+uv run hamigrate tables
 ```
 
 ### 3. Check Migration Status
@@ -93,7 +93,7 @@ hamigrate tables
 Compare row counts between MySQL and PostgreSQL:
 
 ```bash
-hamigrate status
+uv run hamigrate status
 ```
 
 ### 4. View Migration Progress
@@ -101,7 +101,7 @@ hamigrate status
 Check the progress of an ongoing or interrupted migration:
 
 ```bash
-hamigrate progress
+uv run hamigrate progress
 ```
 
 ### 5. Schema Management
@@ -109,14 +109,14 @@ hamigrate progress
 Apply PostgreSQL schema:
 
 ```bash
-hamigrate schema apply
-hamigrate schema apply --force  # Force recreate schema
+uv run hamigrate schema apply
+uv run hamigrate schema apply --force  # Force recreate schema
 ```
 
 Drop schema (dangerous operation):
 
 ```bash
-hamigrate schema drop --force
+uv run hamigrate schema drop --force
 ```
 
 ### 6. Migrate Data
@@ -126,7 +126,7 @@ hamigrate schema drop --force
 Test the migration process with a single table:
 
 ```bash
-hamigrate migrate table event_data --force
+uv run hamigrate migrate table event_data --force
 ```
 
 **Options:**
@@ -139,7 +139,7 @@ hamigrate migrate table event_data --force
 Perform a complete migration of all Home Assistant recorder tables:
 
 ```bash
-hamigrate migrate all --force
+uv run hamigrate migrate all --force
 ```
 
 **Options:**
@@ -151,7 +151,7 @@ hamigrate migrate all --force
 
 **Example with custom batch size:**
 ```bash
-hamigrate migrate all --force --batch-size 50000
+uv run hamigrate migrate all --force --batch-size 50000
 ```
 
 #### Resume Interrupted Migration
@@ -159,7 +159,7 @@ hamigrate migrate all --force --batch-size 50000
 Resume from a previous interrupted migration:
 
 ```bash
-hamigrate migrate resume
+uv run hamigrate migrate resume
 ```
 
 **Options:**
@@ -172,13 +172,13 @@ hamigrate migrate resume
 Validate all tables:
 
 ```bash
-hamigrate validate
+uv run hamigrate validate
 ```
 
 Validate a single table:
 
 ```bash
-hamigrate validate table event_data
+uv run hamigrate validate table event_data
 ```
 
 **Options:**
@@ -186,7 +186,7 @@ hamigrate validate table event_data
 
 **Validation Limitations:**
 
-The current validation (`hamigrate validate`) performs only row count comparison between source and target databases. This is a basic check that ensures the number of rows matches but does not verify data integrity, content accuracy, or detect subtle migration errors.
+The current validation (`uv run hamigrate validate`) performs only row count comparison between source and target databases. This is a basic check that ensures the number of rows matches but does not verify data integrity, content accuracy, or detect subtle migration errors.
 
 For production migrations, consider additional validation steps:
 - **Manual Sampling**: Spot-check random rows in key tables
@@ -266,8 +266,8 @@ The progress file contains a JSON object with the following structure:
 
 - **Safe to Resume**: When migration was interrupted due to network issues, temporary database unavailability, or manual stop (Ctrl+C)
 - **Restart Required**: When source data has changed significantly, schema mismatches, or if progress file is corrupted
-- **Manual Resume**: Use `hamigrate migrate resume` command
-- **Force Restart**: Delete `migration_progress.json` and run `hamigrate migrate all --force`
+- **Manual Resume**: Use `uv run hamigrate migrate resume` command
+- **Force Restart**: Delete `migration_progress.json` and run `uv run hamigrate migrate all --force`
 
 ### Best Practices
 
@@ -279,7 +279,7 @@ The progress file contains a JSON object with the following structure:
 
 1. **Validate the migration:**
    ```bash
-   hamigrate validate
+   uv run hamigrate validate
    ```
 
 2. **Update Home Assistant configuration:**
@@ -429,7 +429,7 @@ MIT
 For issues or questions:
 1. Check this README's Troubleshooting section
 2. Verify your configuration in `.env`
-3. Test connections with `hamigrate check`
+3. Test connections with `uv run hamigrate check`
 4. Check Home Assistant documentation for PostgreSQL setup
 
 ## Version
