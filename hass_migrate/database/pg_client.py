@@ -36,11 +36,7 @@ class PGClient:
             max_size: Maximum pool size (overrides config)
         """
 
-<<<<<<< HEAD:migrate/database/pg_client.py
-        async def init_conn(conn: Connection):
-=======
         async def init_conn(conn: Connection) -> None:
->>>>>>> 383f182d15d125988fd52cf802bcc67c71eef267:hass_migrate/database/pg_client.py
             await conn.execute("SET timezone = 'UTC';")
             await conn.execute(f"SET search_path = '{self.schema}', 'public';")
 
@@ -64,44 +60,6 @@ class PGClient:
             await self.pool.close()
             self.pool = None
 
-<<<<<<< HEAD:migrate/database/pg_client.py
-    async def begin_transaction(self) -> Connection:
-        """
-        Begin a new transaction.
-
-        Returns:
-            PostgreSQL connection with active transaction
-        """
-        if self.pool is None:
-            raise RuntimeError("PostgreSQL pool not established")
-        conn = await self.pool.acquire()
-        await conn.execute("BEGIN")
-        return conn
-
-    async def commit_transaction(self, conn: Connection) -> None:
-        """
-        Commit transaction.
-
-        Args:
-            conn: Connection with active transaction
-        """
-        await conn.execute("COMMIT")
-        await conn.close()
-
-    async def rollback_transaction(self, conn: Connection) -> None:
-        """
-        Rollback transaction.
-
-        Args:
-            conn: Connection with active transaction
-        """
-        await conn.execute("ROLLBACK")
-        await conn.close()
-
-    async def count_rows(
-        self, table: str, schema: str = None, conn: Connection = None
-    ) -> int:
-=======
     @staticmethod
     def _split_sql_statements(sql: str) -> List[str]:
         """
@@ -213,14 +171,12 @@ class PGClient:
         return statements
 
     async def count_rows(self, table: str, schema: str | None = None) -> int:
->>>>>>> 383f182d15d125988fd52cf802bcc67c71eef267:hass_migrate/database/pg_client.py
         """
         Count rows in a table.
 
         Args:
             table: Table name
             schema: Schema name
-            conn: Optional connection (for use within transactions)
 
         Returns:
             Number of rows
@@ -228,35 +184,17 @@ class PGClient:
         if self.pool is None:
             raise RuntimeError("PostgreSQL pool not established")
         schema_name = schema or self.schema
-<<<<<<< HEAD:migrate/database/pg_client.py
-
-        if conn:
-            return await conn.fetchval(
-                f'SELECT COUNT(*) FROM "{schema_name}"."{table}"'
-            )
-        else:
-            async with self.pool.acquire() as conn:
-                return await conn.fetchval(
-                    f'SELECT COUNT(*) FROM "{schema_name}"."{table}"'
-                )
-=======
         async with self.pool.acquire() as conn:
             return await conn.fetchval(
                 f'SELECT COUNT(*) FROM "{schema_name}"."{table}"'
             )
->>>>>>> 383f182d15d125988fd52cf802bcc67c71eef267:hass_migrate/database/pg_client.py
 
     async def batch_insert_copy(
         self,
         table: str,
         columns: List[str],
         records: List[List[Any]],
-<<<<<<< HEAD:migrate/database/pg_client.py
-        schema: str = None,
-        conn: Connection = None,
-=======
         schema: str | None = None,
->>>>>>> 383f182d15d125988fd52cf802bcc67c71eef267:hass_migrate/database/pg_client.py
     ) -> int:
         """
         Insert records using COPY FROM (fastest method).
@@ -266,7 +204,6 @@ class PGClient:
             columns: Column names
             records: List of record lists
             schema: Schema name
-            conn: Optional connection (for use within transactions)
 
         Returns:
             Number of inserted records
@@ -279,7 +216,7 @@ class PGClient:
 
         schema_name = schema or self.schema
 
-        if conn:
+        async with self.pool.acquire() as conn:
             try:
                 await conn.copy_records_to_table(
                     table,
@@ -288,27 +225,8 @@ class PGClient:
                     schema_name=schema_name,
                 )
                 return len(records)
-<<<<<<< HEAD:migrate/database/pg_client.py
-            except Exception as e:
-                # COPY might fail for certain data types, fall back to executemany
-                raise RuntimeError(f"COPY failed: {e}") from e
-        else:
-            async with self.pool.acquire() as conn:
-                try:
-                    await conn.copy_records_to_table(
-                        table,
-                        records=records,
-                        columns=columns,
-                        schema_name=schema_name,
-                    )
-                    return len(records)
-                except Exception as e:
-                    # COPY might fail for certain data types, fall back to executemany
-                    raise RuntimeError(f"COPY failed: {e}") from e
-=======
             except Exception as exc:
                 raise RuntimeError(f"COPY failed: {exc}") from exc
->>>>>>> 383f182d15d125988fd52cf802bcc67c71eef267:hass_migrate/database/pg_client.py
 
     async def batch_insert_executemany(
         self,
@@ -316,12 +234,7 @@ class PGClient:
         columns: List[str],
         records: List[List[Any]],
         unique_constraints: Optional[List[List[str]]] = None,
-<<<<<<< HEAD:migrate/database/pg_client.py
-        schema: str = None,
-        conn: Connection = None,
-=======
         schema: str | None = None,
->>>>>>> 383f182d15d125988fd52cf802bcc67c71eef267:hass_migrate/database/pg_client.py
     ) -> int:
         """
         Insert records using executemany (fallback method).
@@ -332,7 +245,6 @@ class PGClient:
             records: List of record lists
             unique_constraints: Unique constraint columns for ON CONFLICT
             schema: Schema name
-            conn: Optional connection (for use within transactions)
 
         Returns:
             Number of inserted records
@@ -357,13 +269,9 @@ class PGClient:
         else:
             insert_sql = f'INSERT INTO "{schema_name}"."{table}" ({pg_columns}) VALUES ({placeholders})'
 
-        if conn:
+        async with self.pool.acquire() as conn:
             await conn.executemany(insert_sql, records)
             return len(records)
-        else:
-            async with self.pool.acquire() as conn:
-                await conn.executemany(insert_sql, records)
-                return len(records)
 
     async def truncate_table(self, table: str, schema: str | None = None) -> None:
         """
@@ -404,15 +312,9 @@ class PGClient:
             )
             if not seq:
                 return
-<<<<<<< HEAD:migrate/database/pg_client.py
-            await conn.execute(
-                f'SELECT setval($1, (SELECT COALESCE(MAX({pk}), 1) FROM "{schema_name}"."{table}"))',
-                seq,
-=======
 
             max_value = await conn.fetchval(
                 f'SELECT MAX("{pk}") FROM "{schema_name}"."{table}"'
->>>>>>> 383f182d15d125988fd52cf802bcc67c71eef267:hass_migrate/database/pg_client.py
             )
             if max_value is None:
                 await conn.execute("SELECT setval($1, 1, false)", seq)
@@ -447,13 +349,8 @@ class PGClient:
                     """,
                     self.schema,
                 )
-<<<<<<< HEAD:migrate/database/pg_client.py
-                for table_row in tables:
-                    table_name = table_row["tablename"]
-=======
                 for row in tables:
                     table_name = row["tablename"]
->>>>>>> 383f182d15d125988fd52cf802bcc67c71eef267:hass_migrate/database/pg_client.py
                     await conn.execute(
                         f'DROP TABLE IF EXISTS "{self.schema}"."{table_name}" CASCADE;'
                     )
@@ -492,8 +389,4 @@ class PGClient:
         """Re-enable foreign key constraints."""
         if self.pool is None:
             raise RuntimeError("PostgreSQL pool not established")
-<<<<<<< HEAD:migrate/database/pg_client.py
-        # See disable_foreign_keys comment
-=======
         # See disable_foreign_keys note.
->>>>>>> 383f182d15d125988fd52cf802bcc67c71eef267:hass_migrate/database/pg_client.py

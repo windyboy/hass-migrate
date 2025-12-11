@@ -376,13 +376,13 @@ The tool handles these MySQL → PostgreSQL conversions:
 uv sync
 
 # Run all unit tests
-uv run pytest
+uv run python -m pytest
 
 # Run tests with verbose output
-uv run pytest -v
+uv run python -m pytest -v
 
 # Run specific test file
-uv run pytest tests/test_config.py
+uv run python -m pytest tests/test_config.py
 ```
 
 ### Testing
