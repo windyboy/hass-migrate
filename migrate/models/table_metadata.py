@@ -31,9 +31,14 @@ class TableMetadata:
 class MigrationConfig:
     """Migration configuration."""
 
+
     batch_size: int = 20000
+
+    max_chunk_size: int = 10000
     max_concurrent_tables: int = 4
+
     progress_update_interval: int = 10
+
     use_copy: bool = True
     enable_transactions: bool = True
     transaction_batch_size: int = 10  # Number of batches per transaction
@@ -77,4 +82,3 @@ class ValidationResult:
     def all_match(self) -> bool:
         """Check if all validations passed."""
         return self.row_count_match and self.checksum_match and self.sample_match
-

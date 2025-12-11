@@ -22,20 +22,26 @@ class PGClient:
             schema: Schema name (defaults to config.pg_schema or 'hass')
         """
         self.config = config
-        self.schema = schema or getattr(config, 'pg_schema', 'hass')
+        self.schema = schema or getattr(config, "pg_schema", "hass")
         self.pool: Optional[Pool] = None
 
-    async def connect(self, min_size: int = 2, max_size: int = 10) -> None:
+    async def connect(
+        self, min_size: Optional[int] = None, max_size: Optional[int] = None
+    ) -> None:
         """
-        Establish connection pool to PostgreSQL.
+        Establish connection pool to PostgreSQL using configuration parameters.
 
         Args:
-            min_size: Minimum pool size
-            max_size: Maximum pool size
+            min_size: Minimum pool size (overrides config)
+            max_size: Maximum pool size (overrides config)
         """
+
         async def init_conn(conn: Connection):
             await conn.execute("SET timezone = 'UTC';")
             await conn.execute(f"SET search_path = '{self.schema}', 'public';")
+
+        pool_min_size = min_size or self.config.pg_pool_minsize
+        pool_max_size = max_size or self.config.pg_pool_maxsize
 
         self.pool = await asyncpg.create_pool(
             user=self.config.pg_user,
@@ -43,8 +49,8 @@ class PGClient:
             database=self.config.pg_db,
             host=self.config.pg_host,
             port=self.config.pg_port,
-            min_size=min_size,
-            max_size=max_size,
+            min_size=pool_min_size,
+            max_size=pool_max_size,
             init=init_conn,
         )
 
@@ -54,13 +60,49 @@ class PGClient:
             await self.pool.close()
             self.pool = None
 
-    async def count_rows(self, table: str, schema: str = None) -> int:
+    async def begin_transaction(self) -> Connection:
+        """
+        Begin a new transaction.
+
+        Returns:
+            PostgreSQL connection with active transaction
+        """
+        if self.pool is None:
+            raise RuntimeError("PostgreSQL pool not established")
+        conn = await self.pool.acquire()
+        await conn.execute("BEGIN")
+        return conn
+
+    async def commit_transaction(self, conn: Connection) -> None:
+        """
+        Commit transaction.
+
+        Args:
+            conn: Connection with active transaction
+        """
+        await conn.execute("COMMIT")
+        await conn.close()
+
+    async def rollback_transaction(self, conn: Connection) -> None:
+        """
+        Rollback transaction.
+
+        Args:
+            conn: Connection with active transaction
+        """
+        await conn.execute("ROLLBACK")
+        await conn.close()
+
+    async def count_rows(
+        self, table: str, schema: str = None, conn: Connection = None
+    ) -> int:
         """
         Count rows in a table.
 
         Args:
             table: Table name
             schema: Schema name
+            conn: Optional connection (for use within transactions)
 
         Returns:
             Number of rows
@@ -68,8 +110,16 @@ class PGClient:
         if self.pool is None:
             raise RuntimeError("PostgreSQL pool not established")
         schema_name = schema or self.schema
-        async with self.pool.acquire() as conn:
-            return await conn.fetchval(f'SELECT COUNT(*) FROM "{schema_name}"."{table}"')
+
+        if conn:
+            return await conn.fetchval(
+                f'SELECT COUNT(*) FROM "{schema_name}"."{table}"'
+            )
+        else:
+            async with self.pool.acquire() as conn:
+                return await conn.fetchval(
+                    f'SELECT COUNT(*) FROM "{schema_name}"."{table}"'
+                )
 
     async def batch_insert_copy(
         self,
@@ -77,6 +127,7 @@ class PGClient:
         columns: List[str],
         records: List[List[Any]],
         schema: str = None,
+        conn: Connection = None,
     ) -> int:
         """
         Insert records using COPY FROM (fastest method).
@@ -86,6 +137,7 @@ class PGClient:
             columns: Column names
             records: List of record lists
             schema: Schema name
+            conn: Optional connection (for use within transactions)
 
         Returns:
             Number of inserted records
@@ -97,7 +149,8 @@ class PGClient:
             raise RuntimeError("PostgreSQL pool not established")
 
         schema_name = schema or self.schema
-        async with self.pool.acquire() as conn:
+
+        if conn:
             try:
                 await conn.copy_records_to_table(
                     table,
@@ -109,6 +162,19 @@ class PGClient:
             except Exception as e:
                 # COPY might fail for certain data types, fall back to executemany
                 raise RuntimeError(f"COPY failed: {e}") from e
+        else:
+            async with self.pool.acquire() as conn:
+                try:
+                    await conn.copy_records_to_table(
+                        table,
+                        records=records,
+                        columns=columns,
+                        schema_name=schema_name,
+                    )
+                    return len(records)
+                except Exception as e:
+                    # COPY might fail for certain data types, fall back to executemany
+                    raise RuntimeError(f"COPY failed: {e}") from e
 
     async def batch_insert_executemany(
         self,
@@ -117,6 +183,7 @@ class PGClient:
         records: List[List[Any]],
         unique_constraints: Optional[List[List[str]]] = None,
         schema: str = None,
+        conn: Connection = None,
     ) -> int:
         """
         Insert records using executemany (fallback method).
@@ -127,6 +194,7 @@ class PGClient:
             records: List of record lists
             unique_constraints: Unique constraint columns for ON CONFLICT
             schema: Schema name
+            conn: Optional connection (for use within transactions)
 
         Returns:
             Number of inserted records
@@ -149,9 +217,13 @@ class PGClient:
         else:
             insert_sql = f'INSERT INTO "{schema_name}"."{table}" ({pg_columns}) VALUES ({placeholders})'
 
-        async with self.pool.acquire() as conn:
+        if conn:
             await conn.executemany(insert_sql, records)
             return len(records)
+        else:
+            async with self.pool.acquire() as conn:
+                await conn.executemany(insert_sql, records)
+                return len(records)
 
     async def truncate_table(self, table: str, schema: str = None) -> None:
         """
@@ -188,7 +260,7 @@ class PGClient:
             if not seq:
                 return
             await conn.execute(
-                f"SELECT setval($1, (SELECT COALESCE(MAX({pk}), 1) FROM \"{schema_name}\".\"{table}\"))",
+                f'SELECT setval($1, (SELECT COALESCE(MAX({pk}), 1) FROM "{schema_name}"."{table}"))',
                 seq,
             )
 
@@ -208,15 +280,17 @@ class PGClient:
                 # Drop all tables in schema
                 tables = await conn.fetch(
                     """
-                    SELECT tablename 
-                    FROM pg_tables 
+                    SELECT tablename
+                    FROM pg_tables
                     WHERE schemaname = $1
                 """,
                     self.schema,
                 )
                 for table_row in tables:
                     table_name = table_row["tablename"]
-                    await conn.execute(f'DROP TABLE IF EXISTS "{self.schema}"."{table_name}" CASCADE;')
+                    await conn.execute(
+                        f'DROP TABLE IF EXISTS "{self.schema}"."{table_name}" CASCADE;'
+                    )
 
             # Read and execute schema file
             with open(filename, "r", encoding="utf-8") as f:
@@ -233,15 +307,15 @@ class PGClient:
         if self.pool is None:
             raise RuntimeError("PostgreSQL pool not established")
         async with self.pool.acquire() as conn:
-            count = await conn.fetchval(
+            exists = await conn.fetchval(
                 """
-                SELECT COUNT(*)
-                FROM pg_tables
-                WHERE schemaname = $1
+                SELECT 1
+                FROM pg_namespace
+                WHERE nspname = $1
                 """,
                 self.schema,
             )
-        return count > 0
+        return exists is not None
 
     async def disable_foreign_keys(self) -> None:
         """Temporarily disable foreign key constraints (for migration performance)."""
@@ -256,4 +330,3 @@ class PGClient:
         if self.pool is None:
             raise RuntimeError("PostgreSQL pool not established")
         # See disable_foreign_keys comment
-

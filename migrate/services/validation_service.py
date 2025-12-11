@@ -11,7 +11,7 @@ from migrate.utils.logger import StructuredLogger
 
 
 class ValidationService:
-    """Service for validating migration data integrity."""
+    """Service for validating migration data integrity between MySQL and PostgreSQL."""
 
     def __init__(
         self,
@@ -23,9 +23,9 @@ class ValidationService:
         Initialize validation service.
 
         Args:
-            mysql_client: MySQL client
-            pg_client: PostgreSQL client
-            logger: Logger instance
+            mysql_client: Async MySQL client instance
+            pg_client: Async PostgreSQL client instance
+            logger: Structured logger for validation events
         """
         self.mysql_client = mysql_client
         self.pg_client = pg_client
@@ -45,17 +45,14 @@ class ValidationService:
             Validation result
         """
         # 1. Row count comparison
-        mysql_count = self.mysql_client.count_rows(table)
+        mysql_count = await self.mysql_client.count_rows(table)
         pg_count = await self.pg_client.count_rows(table)
 
         row_count_match = mysql_count == pg_count
 
-        # 2. Sample comparison (optional, for large tables)
-        sample_match = True
-        if row_count_match and mysql_count > 0:
-            # Sample some rows and compare
-            # This is a simplified version - could be enhanced with checksums
-            sample_match = await self._sample_compare(table, sample_size)
+        # 2. Sample comparison (placeholder for future implementation)
+        # TODO: Implement actual row data sampling and comparison
+        sample_match = True  # Placeholder - currently always true
 
         return ValidationResult(
             table=table,
@@ -108,24 +105,3 @@ class ValidationService:
                 )
 
         return results
-
-    async def _sample_compare(self, table: str, sample_size: int) -> bool:
-        """
-        Compare a sample of rows between MySQL and PostgreSQL.
-
-        Args:
-            table: Table name
-            sample_size: Number of rows to sample
-
-        Returns:
-            True if samples match
-        """
-        # Simplified: just check if we can read from both
-        # In a full implementation, we'd compare actual row data
-        try:
-            mysql_count = self.mysql_client.count_rows(table)
-            pg_count = await self.pg_client.count_rows(table)
-            return mysql_count == pg_count
-        except Exception:
-            return False
-

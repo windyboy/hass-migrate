@@ -2,11 +2,11 @@
 
 ## Build/Lint/Test Commands
 ```bash
-uv sync                                    # Install dependencies
+uv sync --group dev                       # Install dependencies including test tools
 hamigrate check                           # Test database connections
 hamigrate migrate-all --force            # Full migration (truncates target DB)
-uv run pytest                             # Run all unit tests
-uv run pytest tests/test_file.py::TestClass::test_method  # Run single test
+uv run python -m pytest                   # Run all unit tests
+uv run python -m pytest tests/test_file.py::TestClass::test_method  # Run single test
 ```
 
 ## Code Style Guidelines

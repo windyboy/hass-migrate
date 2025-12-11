@@ -49,6 +49,7 @@ class TestMigrationConfig:
         """Test MigrationConfig with default values."""
         config = MigrationConfig()
         assert config.batch_size == 20000
+        assert config.max_chunk_size == 10000
         assert config.max_concurrent_tables == 4
         assert config.progress_update_interval == 10
         assert config.use_copy is True
@@ -60,11 +61,17 @@ class TestMigrationConfig:
         """Test MigrationConfig with custom values."""
         config = MigrationConfig(
             batch_size=50000,
+            max_chunk_size=8000,
             max_concurrent_tables=8,
+            progress_update_interval=5,
+            use_copy=False,
             schema="custom_schema",
         )
         assert config.batch_size == 50000
+        assert config.max_chunk_size == 8000
         assert config.max_concurrent_tables == 8
+        assert config.progress_update_interval == 5
+        assert config.use_copy is False
         assert config.schema == "custom_schema"
 
 
@@ -175,4 +182,3 @@ class TestValidationResult:
             errors=["Count mismatch"],
         )
         assert result.errors == ["Count mismatch"]
-

@@ -17,12 +17,12 @@ def _validate_all_impl(schema: Optional[str] = None):
     """Internal implementation of validate all."""
     cfg = DBConfig()
     mysql_client = MySQLClient(cfg)
-    mysql_client.connect()
 
     async def _run():
         schema_name = get_schema_name(cfg, schema)
         pg_client = PGClient(cfg, schema=schema_name)
         await pg_client.connect()
+        await mysql_client.connect()
         console.rule("[bold cyan]VALIDATION[/bold cyan]")
         try:
             validation_service = ValidationService(mysql_client, pg_client, logger)
@@ -47,7 +47,7 @@ def _validate_all_impl(schema: Optional[str] = None):
                 console.print("[bold red]Validation failed: row counts mismatch[/bold red]")
                 raise typer.Exit(1)
         finally:
-            mysql_client.close()
+            await mysql_client.close()
             await pg_client.close()
 
     asyncio.run(_run())
@@ -86,12 +86,12 @@ def register_validate_commands(validate_app: typer.Typer) -> None:
         
         cfg = DBConfig()
         mysql_client = MySQLClient(cfg)
-        mysql_client.connect()
 
         async def _run():
             schema_name = get_schema_name(cfg, schema)
             pg_client = PGClient(cfg, schema=schema_name)
             await pg_client.connect()
+            await mysql_client.connect()
             console.rule(f"[bold cyan]VALIDATION: {table_name}[/bold cyan]")
             try:
                 validation_service = ValidationService(mysql_client, pg_client, logger)
@@ -107,7 +107,7 @@ def register_validate_commands(validate_app: typer.Typer) -> None:
                     )
                     raise typer.Exit(1)
             finally:
-                mysql_client.close()
+                await mysql_client.close()
                 await pg_client.close()
 
         asyncio.run(_run())

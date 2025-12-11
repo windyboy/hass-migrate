@@ -183,6 +183,18 @@ hamigrate validate table event_data
 **Options:**
 - `--schema`: PostgreSQL schema name (default: PG_SCHEMA env var or 'hass')
 
+**Validation Limitations:**
+
+The current validation (`hamigrate validate`) performs only row count comparison between source and target databases. This is a basic check that ensures the number of rows matches but does not verify data integrity, content accuracy, or detect subtle migration errors.
+
+For production migrations, consider additional validation steps:
+- **Manual Sampling**: Spot-check random rows in key tables
+- **Checksum Validation**: Compare MD5/SHA256 hashes of table data (requires custom scripts)
+- **Application Testing**: Run Home Assistant with migrated data and verify functionality
+- **Statistics Verification**: Ensure historical data and trends are preserved
+
+Future versions may include configurable sampling and checksum validation options.
+
 ## Supported Tables
 
 The tool migrates all Home Assistant recorder tables:
@@ -222,7 +234,45 @@ The tool follows this process:
    - Adds timezone info to datetime fields
    - Converts tinyint(1) to boolean for specific fields
 5. **Sequence Correction**: Updates PostgreSQL sequences to match data
-6. **Progress Tracking**: Saves progress for resume capability
+7. **Progress Tracking**: Saves progress for resume capability
+
+## Migration Progress and Resume
+
+The tool uses a `migration_progress.json` file in the working directory to track migration progress. This allows resuming interrupted migrations without restarting from the beginning.
+
+### Progress File Structure
+
+The progress file contains a JSON object with the following structure:
+
+```json
+{
+  "table_name": {
+    "last_id": 12345,
+    "total": 67890,
+    "status": "in_progress",
+    "updated_at": "2023-10-01T12:00:00Z"
+  },
+  ...
+}
+```
+
+- `last_id`: The last processed primary key value for resume
+- `total`: Total number of rows in the table
+- `status`: One of "in_progress", "completed", "failed"
+- `updated_at`: Timestamp of last update
+
+### Resume Strategy
+
+- **Safe to Resume**: When migration was interrupted due to network issues, temporary database unavailability, or manual stop (Ctrl+C)
+- **Restart Required**: When source data has changed significantly, schema mismatches, or if progress file is corrupted
+- **Manual Resume**: Use `hamigrate migrate resume` command
+- **Force Restart**: Delete `migration_progress.json` and run `hamigrate migrate all --force`
+
+### Best Practices
+
+- Do not modify the progress file manually
+- Keep backups of the progress file during long migrations
+- Monitor disk space as progress file grows with table count
 
 ## Post-Migration Steps
 

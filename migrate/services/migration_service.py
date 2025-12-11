@@ -27,7 +27,7 @@ UNIQUE_CONSTRAINTS: Dict[str, List[List[str]]] = {
 
 
 class MigrationService:
-    """Service for orchestrating table migrations."""
+    """Service for orchestrating table migrations with async support."""
 
     def __init__(
         self,
@@ -40,10 +40,10 @@ class MigrationService:
         Initialize migration service.
 
         Args:
-            mysql_client: MySQL client
-            pg_client: PostgreSQL client
-            dependency_analyzer: Dependency analyzer
-            logger: Logger instance
+            mysql_client: Async MySQL client instance
+            pg_client: Async PostgreSQL client instance
+            dependency_analyzer: Dependency analyzer for table relationships
+            logger: Structured logger for migration events
         """
         self.mysql_client = mysql_client
         self.pg_client = pg_client
@@ -74,7 +74,6 @@ class MigrationService:
         table: str,
         columns: List[str],
         config: MigrationConfig,
-        mysql_conn=None,
         progress_tracker: Optional[ProgressTracker] = None,
     ) -> MigrationResult:
         """
@@ -84,7 +83,6 @@ class MigrationService:
             table: Table name
             columns: Column names
             config: Migration configuration
-            mysql_conn: Optional MySQL connection (for concurrent migrations)
             progress_tracker: Optional progress tracker
 
         Returns:
@@ -93,88 +91,138 @@ class MigrationService:
         start_time = time.time()
         errors: List[str] = []
 
-        mysql_connection = mysql_conn if mysql_conn is not None else self.mysql_client.connection
-        if mysql_connection is None:
-            raise RuntimeError("MySQL connection not established")
-
         if progress_tracker is None:
             progress_tracker = ProgressTracker(
                 update_interval=config.progress_update_interval
             )
 
         pk_col = columns[0]  # Assume first column is primary key
+
         last_id = self.progress.get(table, {}).get("last_id", None)
+
         total_migrated = self.progress.get(table, {}).get("total", 0)
 
-        cursor = mysql_connection.cursor(buffered=True)
         unique_constraints = UNIQUE_CONSTRAINTS.get(table)
 
         try:
-            col_str = ", ".join(columns)
-            if last_id is not None:
-                cursor.execute(
-                    f"SELECT {col_str} FROM {table} WHERE {pk_col} > %s ORDER BY {pk_col}",
-                    (last_id,),
-                )
-            else:
-                cursor.execute(f"SELECT {col_str} FROM {table} ORDER BY {pk_col}")
-
             total = total_migrated
-            batch_count = 0
+
+            pk_index = columns.index(pk_col) if pk_col in columns else 0
+            self.progress.setdefault(
+                table, {"last_id": last_id, "total": total, "status": "in_progress"}
+            )
+
+            if self.pg_client.pool is None:
+                raise RuntimeError("PostgreSQL pool not established")
 
             async with self.pg_client.pool.acquire() as conn:
                 while True:
-                    rows = cursor.fetchmany(config.batch_size)
+                    rows, _ = await self.mysql_client.fetch_batch_with_resume(
+                        table=table,
+                        columns=columns,
+                        batch_size=config.batch_size,
+                        last_id=last_id,
+                        primary_key=pk_col,
+                    )
+
                     if not rows:
                         break
 
-                    # Clean batch
-                    cleaned_batch = clean_batch_values(table, columns, list(rows))
+                    raw_chunk_size = getattr(config, "max_chunk_size", None)
 
-                    if not cleaned_batch:
-                        continue
+                    max_chunk_size = (
+                        raw_chunk_size
+                        if isinstance(raw_chunk_size, int) and raw_chunk_size > 0
+                        else len(rows)
+                    )
+                    if len(rows) > max_chunk_size:
+                        chunks = [
+                            rows[i : i + max_chunk_size]
+                            for i in range(0, len(rows), max_chunk_size)
+                        ]
 
-                    # Insert batch
-                    try:
-                        if config.use_copy:
-                            try:
-                                await conn.copy_records_to_table(
-                                    table,
-                                    records=cleaned_batch,
-                                    columns=columns,
-                                    schema_name=config.schema,
-                                )
-                                inserted_count = len(cleaned_batch)
-                            except Exception as copy_error:
-                                # Fall back to executemany
+                    else:
+                        chunks = [rows]
+
+                    for chunk in chunks:
+                        cleaned_batch = clean_batch_values(table, columns, list(chunk))
+
+                        if not cleaned_batch:
+                            continue
+
+                        inserted_count = 0
+
+                        try:
+                            async with conn.transaction():
+                                if config.use_copy:
+                                    await conn.copy_records_to_table(
+                                        table,
+                                        records=cleaned_batch,
+                                        columns=columns,
+                                        schema_name=config.schema,
+                                    )
+
+                                    inserted_count = len(cleaned_batch)
+
+                                else:
+                                    inserted_count = await self._insert_executemany(
+                                        conn,
+                                        table,
+                                        columns,
+                                        cleaned_batch,
+                                        unique_constraints,
+                                        schema=config.schema,
+                                    )
+
+                        except Exception as primary_error:
+                            if config.use_copy:
                                 self.logger.warning(
-                                    f"COPY failed for {table}, using executemany",
-                                    error=str(copy_error),
+                                    f"COPY failed for {table}, retrying with executemany",
+                                    error=str(primary_error),
                                 )
-                                inserted_count = await self._insert_executemany(
-                                    conn, table, columns, cleaned_batch, unique_constraints, schema=config.schema
-                                )
-                        else:
-                            inserted_count = await self._insert_executemany(
-                                conn, table, columns, cleaned_batch, unique_constraints, schema=config.schema
-                            )
+                                try:
+                                    async with conn.transaction():
+                                        inserted_count = await self._insert_executemany(
+                                            conn,
+                                            table,
+                                            columns,
+                                            cleaned_batch,
+                                            unique_constraints,
+                                            schema=config.schema,
+                                        )
+                                except Exception as fallback_error:
+                                    error_msg = f"Error inserting batch for {table} using executemany: {fallback_error}"
+
+                                    errors.append(error_msg)
+
+                                    self.logger.error(error_msg)
+
+                                    raise RuntimeError(error_msg) from fallback_error
+                            else:
+                                error_msg = f"Error inserting batch for {table}: {primary_error}"
+                                errors.append(error_msg)
+                                self.logger.error(error_msg)
+                                raise RuntimeError(error_msg) from primary_error
 
                         total += inserted_count
-                        batch_count += 1
+                        last_id = chunk[-1][pk_index]
+                        self.progress[table].update(
+                            {
+                                "last_id": last_id,
+                                "total": total,
+                            }
+                        )
 
-                        # Update progress if needed
                         if progress_tracker.should_update():
-                            last_id = rows[-1][0] if rows else last_id
-                            self.progress[table] = {"last_id": last_id, "total": total}
+                            self.logger.info(f"{table}: {total:,} rows migrated...")
 
-                    except Exception as e:
-                        error_msg = f"Error inserting batch for {table}: {e}"
-                        errors.append(error_msg)
-                        self.logger.error(error_msg)
+                    del rows
 
-                    # Log progress periodically
-                    if batch_count % 10 == 0:
-                        self.logger.info(f"{table}: {total:,} rows migrated...")
+            self.progress[table].update(
+                {
+                    "status": "completed",
+                }
+            )
 
             duration = time.time() - start_time
             self.logger.log_migration_event(
@@ -192,10 +240,25 @@ class MigrationService:
                 errors=errors,
             )
 
-        finally:
-            cursor.close()
-            if mysql_conn is not None:
-                mysql_connection.close()
+        except Exception as e:
+            error_msg = f"Unexpected error during migration of {table}: {e}"
+            errors.append(error_msg)
+            self.logger.error(error_msg)
+            self.progress[table].update(
+                {
+                    "status": "failed",
+                }
+            )
+            self.logger.warning(
+                f"Partial progress recorded for {table}: last_id={last_id}, rows_migrated={total}"
+            )
+            return MigrationResult(
+                table=table,
+                rows_migrated=total,
+                success=False,
+                duration=time.time() - start_time,
+                errors=errors,
+            )
 
     async def _insert_executemany(
         self,
@@ -263,40 +326,69 @@ class MigrationService:
 
         # Migrate by level
         for level_idx, level_tables in enumerate(table_levels):
-            self.logger.info(f"Migrating level {level_idx + 1}: {', '.join(level_tables)}")
+            self.logger.info(
+                f"Migrating level {level_idx + 1}: {', '.join(level_tables)}"
+            )
 
-            # Create tasks for this level
+            # Create tasks for this level with concurrency limit
+            max_concurrent = getattr(config, "max_concurrent_tables", 1) or 1
+            semaphore = asyncio.Semaphore(max(1, max_concurrent))
             tasks = []
+
+            async def run_table(
+                table_name: str, table_columns: List[str]
+            ) -> MigrationResult:
+                async with semaphore:
+                    start = time.time()
+                    self.logger.info(f"Starting migration for {table_name}")
+                    try:
+                        result = await self.migrate_table(
+                            table_name,
+                            table_columns,
+                            config,
+                        )
+                    except Exception as exc:
+                        duration = time.time() - start
+                        error_msg = f"Migration failed for {table_name}: {exc}"
+                        self.logger.error(error_msg)
+                        progress_snapshot = self.progress.get(table_name, {})
+                        partial_rows = progress_snapshot.get("total", 0)
+                        if partial_rows:
+                            self.logger.warning(
+                                f"Partial progress retained for {table_name}: {partial_rows} rows migrated so far"
+                            )
+                        return MigrationResult(
+                            table=table_name,
+                            rows_migrated=partial_rows,
+                            success=False,
+                            duration=duration,
+                            errors=[str(exc)],
+                        )
+                    if result.success:
+                        self.logger.info(
+                            f"Completed migration for {table_name} in {result.duration:.2f}s"
+                        )
+                    else:
+                        self.logger.error(
+                            f"Migration for {table_name} completed with errors after {result.duration:.2f}s"
+                        )
+                    return result
+
             for table_name in level_tables:
                 # Find columns for this table
-                columns = next((cols for t, cols in all_tables if t == table_name), None)
+                columns = next(
+                    (cols for t, cols in all_tables if t == table_name), None
+                )
                 if columns is None:
                     self.logger.warning(f"Columns not found for table {table_name}")
                     continue
 
-                # Create MySQL connection for concurrent migration
-                mysql_conn = self.mysql_client.create_connection()
-                task = self.migrate_table(
-                    table_name,
-                    columns,
-                    config,
-                    mysql_conn=mysql_conn,
-                )
-                tasks.append(task)
+                tasks.append(asyncio.create_task(run_table(table_name, columns)))
 
-            # Execute level migrations (can be parallel)
-            if len(tasks) == 1:
-                # Single table, no need for gather
-                result = await tasks[0]
-                results.append(result)
-            else:
-                # Multiple tables, migrate concurrently
-                level_results = await asyncio.gather(*tasks, return_exceptions=True)
-                for result in level_results:
-                    if isinstance(result, Exception):
-                        self.logger.error(f"Migration failed: {result}")
-                    else:
-                        results.append(result)
+            if not tasks:
+                continue
+
+            level_results = await asyncio.gather(*tasks)
+            results.extend(level_results)
 
         return results
-
