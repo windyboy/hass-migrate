@@ -25,6 +25,9 @@ class DBConfig:
         self.mysql_user = self._require_env("MYSQL_USER")
         self.mysql_password = self._require_env("MYSQL_PASSWORD")
         self.mysql_db = self._require_env("MYSQL_DB")
+        self.mysql_pool_minsize = int(os.getenv("MYSQL_POOL_MINSIZE", "1"))
+        self.mysql_pool_maxsize = int(os.getenv("MYSQL_POOL_MAXSIZE", "10"))
+        self.mysql_pool_timeout = float(os.getenv("MYSQL_POOL_TIMEOUT", "30.0"))
 
         # PostgreSQL Configuration
         self.pg_host = self._require_env("PG_HOST")
@@ -35,6 +38,9 @@ class DBConfig:
         self.pg_schema = os.getenv(
             "PG_SCHEMA", "public"
         )  # Default to 'public' for Home Assistant compatibility
+        self.pg_pool_minsize = int(os.getenv("PG_POOL_MINSIZE", "1"))
+        self.pg_pool_maxsize = int(os.getenv("PG_POOL_MAXSIZE", "10"))
+        self.pg_pool_timeout = float(os.getenv("PG_POOL_TIMEOUT", "30.0"))
 
     def _require_env(self, key: str) -> str:
         """Get required environment variable or raise ConfigError."""

@@ -41,7 +41,6 @@ class MySQLClient:
             autocommit=True,
             minsize=self.config.mysql_pool_minsize,
             maxsize=self.config.mysql_pool_maxsize,
-            timeout=self.config.mysql_pool_timeout,
         )
 
     async def close(self) -> None:
