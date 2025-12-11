@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from migrate.utils.dependency import DependencyAnalyzer
+from hass_migrate.utils.dependency import DependencyAnalyzer
 
 
 class TestDependencyAnalyzer:

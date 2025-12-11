@@ -22,7 +22,7 @@ def mock_env_vars():
         "PG_USER": "test_user",
         "PG_PASSWORD": "test_password",
         "PG_DB": "test_db",
-        "PG_SCHEMA": "hass",
+        "PG_SCHEMA": "public",
     }
     with patch.dict(os.environ, env_vars, clear=False):
         yield env_vars

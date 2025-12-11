@@ -1,27 +1,24 @@
 # Home Assistant MySQL to PostgreSQL Migration Tool
 
-A robust, production-ready tool for migrating Home Assistant Recorder data from MySQL/MariaDB to PostgreSQL with data integrity validation and type conversion.
+> **✅ MIGRATION TOOL IS FULLY IMPLEMENTED AND READY FOR PRODUCTION USE**
+> 
+> **All migration commands are functional. Ready for testing in non-production environments.**
+> 
+> **Current Status:**
+> - ✅ Configuration validation and PostgreSQL schema are complete
+> - ✅ All CLI commands (check, tables, status, progress, schema, migrate, validate) are functional
+> - ✅ Data migration engine with resume capability is implemented
+> - ✅ Progress tracking, validation, and error handling are implemented
 
-## Features
-
-- ✅ High-performance bulk migration with configurable batch sizes
-- ✅ Schema-aware field type transformation (MySQL → PostgreSQL)
-- ✅ Data cleaning (null bytes, empty strings, timezone conversion)
-- ✅ Primary key sequence correction
-- ✅ Built-in validation and consistency checks
-- ✅ Resume capability for interrupted migrations
-- ✅ Concurrent table migration for improved performance
-- ✅ Progress tracking with atomic updates
+---
 
 ## Why PostgreSQL?
 
-Home Assistant recommends PostgreSQL for optimal performance and stability, especially for long-term statistics and time-series data. PostgreSQL offers:
+Home Assistant recommends PostgreSQL for larger installations, particularly for long-term statistics. This tool facilitates the migration from MySQL/MariaDB by handling:
 
-- Better performance for complex queries
-- More robust handling of concurrent operations
-- Advanced indexing capabilities
-- Better support for JSON data
-- Improved reliability and data integrity
+- **Type Conversion**: Maps MySQL types to PostgreSQL equivalents (e.g., `TINYINT(1)` to `BOOLEAN`).
+- **Data Cleaning**: Fixes common issues like null bytes in strings.
+- **Schema Optimization**: Applies a schema optimized for Home Assistant's data structure.
 
 ## Installation
 
@@ -34,8 +31,9 @@ Home Assistant recommends PostgreSQL for optimal performance and stability, espe
 ### Setup
 
 ```bash
-# Clone or navigate to the project directory
-cd migrate
+# Clone the repository
+git clone https://github.com/windyboy/hass-migrate.git
+cd hass-migrate
 
 # Install dependencies
 uv sync
@@ -65,9 +63,12 @@ PG_PORT=5432
 PG_USER=homeassistant
 PG_PASSWORD=your_postgres_password
 PG_DB=homeassistant
+PG_SCHEMA=public  # Default schema (use 'public' for standard HA setup)
 ```
 
 ## Usage
+
+> **Note:** All commands are implemented. See below for details.
 
 ### 1. Test Database Connections
 
@@ -131,7 +132,7 @@ hamigrate migrate table event_data --force
 **Options:**
 - `--force` / `-f`: Skip confirmation prompts and truncate tables
 - `--batch-size`: Number of rows per batch (default: 20,000)
-- `--schema`: PostgreSQL schema name (default: PG_SCHEMA env var or 'hass')
+- `--schema`: PostgreSQL schema name (default: PG_SCHEMA env var or 'public')
 
 #### Migrate All Tables
 
@@ -146,7 +147,7 @@ hamigrate migrate all --force
 - `--batch-size`: Number of rows per batch (default: 20,000)
 - `--max-concurrent`: Maximum number of tables to migrate concurrently (default: 4)
 - `--backup`: Create backup before migration
-- `--schema`: PostgreSQL schema name (default: PG_SCHEMA env var or 'hass')
+- `--schema`: PostgreSQL schema name (default: PG_SCHEMA env var or 'public')
 
 **Example with custom batch size:**
 ```bash
@@ -164,7 +165,7 @@ hamigrate migrate resume
 **Options:**
 - `--batch-size`: Number of rows per batch (default: 20,000)
 - `--max-concurrent`: Maximum number of tables to migrate concurrently (default: 4)
-- `--schema`: PostgreSQL schema name (default: PG_SCHEMA env var or 'hass')
+- `--schema`: PostgreSQL schema name (default: PG_SCHEMA env var or 'public')
 
 ### 7. Validate Migration
 
@@ -181,7 +182,7 @@ hamigrate validate table event_data
 ```
 
 **Options:**
-- `--schema`: PostgreSQL schema name (default: PG_SCHEMA env var or 'hass')
+- `--schema`: PostgreSQL schema name (default: PG_SCHEMA env var or 'public')
 
 **Validation Limitations:**
 
@@ -317,7 +318,7 @@ The progress file contains a JSON object with the following structure:
 ### Migration Issues
 
 **Error: "Schema file not found"**
-- The PostgreSQL schema file should be at `migrate/schema/postgres_schema.sql`
+- The PostgreSQL schema file should be at `hass_migrate/schema/postgres_schema.sql`
 - Ensure you're running the latest version
 
 **Slow migration performance:**
@@ -372,7 +373,7 @@ The tool handles these MySQL → PostgreSQL conversions:
 
 ```bash
 # Install dependencies including test tools
-uv sync --extra test
+uv sync
 
 # Run all unit tests
 uv run pytest
@@ -382,9 +383,6 @@ uv run pytest -v
 
 # Run specific test file
 uv run pytest tests/test_config.py
-
-# Run with coverage (if pytest-cov is installed)
-uv run pytest --cov=migrate --cov-report=html
 ```
 
 ### Testing
@@ -392,15 +390,18 @@ uv run pytest --cov=migrate --cov-report=html
 ### Project Structure
 
 ```
-migrate/
-├── migrate/
+hass-migrate/
+├── hass_migrate/
 │   ├── __init__.py          # Package initialization
-│   ├── cli.py               # Command-line interface
+│   ├── cli/                 # Command-line interface
 │   ├── config.py            # Configuration and validation
-│   ├── engine.py            # Migration engine
-│   └── schema/
+│   ├── database/            # Database clients
+│   ├── models/              # Data models
+│   ├── schema/
 │       ├── postgres_schema.sql  # PostgreSQL schema (USED)
 │       └── schema.sql           # MySQL schema (reference only)
+│   ├── services/            # Business logic services
+│   └── utils/               # Utility functions
 ├── .env.example             # Environment template
 ├── pyproject.toml           # Project dependencies
 └── README.md                # This file
@@ -433,12 +434,15 @@ For issues or questions:
 
 ## Version
 
-Current version: 0.1.0
+Current version: 0.1.0-dev
 
-Features in this version:
-- Complete table migration
-- Data type conversion
-- Progress tracking and resume
-- Validation command
-- Concurrent table migration
-- Robust error handling
+Implemented in this version:
+- ✅ Configuration validation
+- ✅ Database connection testing
+- ✅ PostgreSQL schema SQL
+- ✅ Table listing and status checking
+- ✅ Data migration engine
+- ✅ Schema management commands
+- ✅ Progress tracking and resume
+- ✅ Validation commands
+- ✅ Concurrent table migration

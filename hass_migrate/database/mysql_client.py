@@ -6,7 +6,7 @@ from typing import Any, Dict, List, Optional, Sequence
 
 import aiomysql
 
-from migrate.config import DBConfig
+from hass_migrate.config import DBConfig
 
 
 class MySQLClient:

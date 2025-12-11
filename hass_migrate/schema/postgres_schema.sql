@@ -69,7 +69,7 @@ CREATE TABLE states (
     entity_id VARCHAR(255),
     state VARCHAR(255),
     attributes TEXT,
-    event_id SMALLINT,
+    event_id BIGINT,
     last_changed TIMESTAMP,
     last_changed_ts DOUBLE PRECISION,
     last_reported_ts DOUBLE PRECISION,
@@ -190,6 +190,10 @@ ALTER TABLE events
 ALTER TABLE events
     ADD CONSTRAINT fk_events_event_type_id
     FOREIGN KEY (event_type_id) REFERENCES event_types(event_type_id);
+
+ALTER TABLE states
+    ADD CONSTRAINT fk_states_event_id
+    FOREIGN KEY (event_id) REFERENCES events(event_id);
 
 ALTER TABLE states
     ADD CONSTRAINT fk_states_old_state_id

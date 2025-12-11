@@ -6,7 +6,7 @@ import sys
 from datetime import datetime, timezone
 from typing import Any
 
-from migrate.utils.logger import StructuredLogger
+from hass_migrate.utils.logger import StructuredLogger
 
 # Initialize logger
 logger = StructuredLogger("data_cleaner")
@@ -141,4 +141,18 @@ def clean_batch_values(
         ]
         cleaned_batch.append(cleaned_row)
     return cleaned_batch
+
+
+def clean_row(table: str, row: dict[str, Any]) -> dict[str, Any]:
+    """
+    Clean a single row dict.
+
+    Args:
+        table: Table name
+        row: Row as dict
+
+    Returns:
+        Cleaned row dict
+    """
+    return {col: clean_value(table, col, val) for col, val in row.items()}
 

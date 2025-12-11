@@ -8,8 +8,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
-from migrate.config import DBConfig
-from migrate.utils.logger import StructuredLogger
+from hass_migrate.config import DBConfig
+from hass_migrate.utils.logger import StructuredLogger
 
 
 class BackupService:

@@ -1,13 +1,20 @@
-# Agent Instructions for Home Assistant Migration Tool
+# Home Assistant Migration Tool - Development Guide
 
-## Build/Lint/Test Commands
+## Build and Test Commands
 ```bash
-uv sync --group dev                       # Install dependencies including test tools
-hamigrate check                           # Test database connections
-hamigrate migrate-all --force            # Full migration (truncates target DB)
-uv run python -m pytest                   # Run all unit tests
-uv run python -m pytest tests/test_file.py::TestClass::test_method  # Run single test
+uv sync                                    # Install dependencies
+uv run pytest                             # Run all unit tests
+uv run pytest tests/test_file.py::TestClass::test_method  # Run single test
 ```
+
+## Migration Commands
+All migration commands are implemented:
+- `hamigrate check`                           # Test database connections
+- `hamigrate tables`                          # List tables
+- `hamigrate status`                          # Check migration status
+- `hamigrate migrate table <name> --force`    # Migrate single table
+- `hamigrate migrate all --force`             # Full migration
+- `hamigrate migrate resume`                  # Resume interrupted migration
 
 ## Code Style Guidelines
 - **Imports**: Standard library first, third-party second, local last. One per line. Use `from __future__ import annotations`
