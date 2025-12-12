@@ -100,7 +100,13 @@ class MigrationService:
         Returns:
             Migration result
         """
-        # Validate table name
+        # Validate table name to prevent SQL injection
+        if not isinstance(table, str) or not table.replace('_', '').replace('-', '').isalnum():
+            error_msg = f"Invalid table name format: '{table}'"
+            self.logger.error(error_msg)
+            self.console.print(f"[red]Error: {error_msg}[/red]")
+            return MigrationResult(table=table, rows_migrated=0, success=False, duration=0.0, errors=[error_msg])
+
         if table not in VALID_TABLES:
             error_msg = f"Invalid table name '{table}'. Valid tables: {', '.join(VALID_TABLES)}"
             self.logger.error(error_msg)
@@ -110,7 +116,16 @@ class MigrationService:
         start_time = time.time()
         errors: List[str] = []
 
-        mysql_connection = mysql_conn if mysql_conn is not None else self.mysql_client.connection
+        # Handle MySQL connection for concurrent migrations
+        if mysql_conn is not None:
+            # Use provided connection (from concurrent migration)
+            mysql_connection = mysql_conn
+            connection_provided = True
+        else:
+            # Acquire connection from pool
+            mysql_connection = await self.mysql_client.pool.acquire()
+            connection_provided = False
+
         if mysql_connection is None:
             raise RuntimeError("MySQL connection not established")
 
@@ -119,29 +134,33 @@ class MigrationService:
                 update_interval=config.progress_update_interval
             )
 
+        # Validate batch size to prevent memory issues
+        if config.batch_size > 100000:
+            self.logger.warning(f"Large batch size {config.batch_size} may cause memory issues")
+
         pk_col = columns[0]  # Assume first column is primary key
         last_id = self.progress.get(table, {}).get("last_id", None)
         total_migrated = self.progress.get(table, {}).get("total", 0)
 
-        cursor = mysql_connection.cursor(buffered=True)
+        cursor = await mysql_connection.cursor()
         unique_constraints = UNIQUE_CONSTRAINTS.get(table)
 
         try:
             col_str = ", ".join(columns)
             if last_id is not None:
-                cursor.execute(
+                await cursor.execute(
                     f"SELECT {col_str} FROM {table} WHERE {pk_col} > %s ORDER BY {pk_col}",
                     (last_id,),
                 )
             else:
-                cursor.execute(f"SELECT {col_str} FROM {table} ORDER BY {pk_col}")
+                await cursor.execute(f"SELECT {col_str} FROM {table} ORDER BY {pk_col}")
 
             total = total_migrated
             batch_count = 0
 
             async with self.pg_client.pool.acquire() as conn:
                 while True:
-                    rows = cursor.fetchmany(config.batch_size)
+                    rows = await cursor.fetchmany(config.batch_size)
                     if not rows:
                         break
 
@@ -211,9 +230,11 @@ class MigrationService:
             )
 
         finally:
-            cursor.close()
-            if mysql_conn is not None:
-                mysql_connection.close()
+            await cursor.close()
+            if not connection_provided and mysql_connection is not None:
+                # Release connection back to pool if we acquired it
+                await mysql_connection.close()
+                await self.mysql_client.pool.release(mysql_connection)
 
     async def _insert_executemany(
         self,
@@ -305,7 +326,7 @@ class MigrationService:
                     continue
 
                 # Create MySQL connection for concurrent migration
-                mysql_conn = self.mysql_client.create_connection()
+                mysql_conn = await self.mysql_client.create_connection()
                 task = self.migrate_table(
                     table_name,
                     columns,

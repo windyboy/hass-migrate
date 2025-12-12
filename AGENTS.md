@@ -1,28 +1,31 @@
-# Home Assistant Migration Tool - Development Guide
+# Home Assistant Migration Tool - Agent Guide
 
-## Build and Test Commands
-```bash
-uv sync                                    # Install dependencies
-uv run pytest                             # Run all unit tests
-uv run pytest tests/test_file.py::TestClass::test_method  # Run single test
-```
-
-## Migration Commands
-All migration commands are implemented:
-- `hamigrate check`                           # Test database connections
-- `hamigrate tables`                          # List tables
-- `hamigrate status`                          # Check migration status
-- `hamigrate migrate table <name> --force`    # Migrate single table
-- `hamigrate migrate all --force`             # Full migration
-- `hamigrate migrate resume`                  # Resume interrupted migration
+## Build/Test Commands
+- Setup: `uv sync` (Python 3.13+ required)
+- Run all tests: `uv run pytest`
+- Run single test: `uv run pytest tests/test_file.py::TestClass::test_method`
+- Run E2E: `uv run pytest tests/test_e2e.py`
+- Run last failed: `uv run pytest --lf`
 
 ## Code Style Guidelines
-- **Imports**: Standard library first, third-party second, local last. One per line. Use `from __future__ import annotations`
-- **Naming**: `snake_case` for functions/variables, `PascalCase` for classes, `UPPER_CASE` for constants
-- **Types**: Type hints on all parameters/returns. Use `Optional[T]`, `List[T]`, `Dict[K,V]` from typing
-- **Error Handling**: Specific exceptions in try/except. `typer.Exit(1)` for CLI errors. Rich console for messages
+- **Imports**: Std lib → third-party → local, one per line, `from __future__ import annotations` first
 - **Formatting**: 4 spaces indent, f-strings, double quotes for strings, single for docstrings
-- **Async**: `async`/`await` consistently, `asyncio.run()` for top-level, proper cleanup with `async with`
-- **Database**: Parameterized queries, batch operations (20k rows), connection pooling/cleanup
-- **Security**: No credential logging, env vars for config, validate inputs before DB operations</content>
-<parameter name="filePath">/Users/windy/Projects/hass/migrate/AGENTS.md
+- **Naming**: `snake_case` vars/functions, `PascalCase` classes, `UPPER_CASE` constants, `_` private
+- **Types**: Full hints, `Optional[T]`, `List[T]`, `Dict[K,V]`, `|` unions (3.13+)
+- **Async**: `async/await`, `asyncio.run()` top-level, `async with` resources
+- **Database**: `%s` MySQL, `$1` PG parameterized queries, batch ops, pooling
+- **Error Handling**: Specific exceptions, `typer.Exit(1)` CLI, Rich console, no credential logging
+- **Patterns**: Dependency injection, batch processing, progress tracking
+
+## Migration Commands
+- Check: `uv run hamigrate check`
+- Migrate all: `uv run hamigrate migrate all --force`
+- Resume: `uv run hamigrate migrate resume`
+
+## Key Components
+- CLI: `hass_migrate/cli/` (Typer)
+- Services: `hass_migrate/services/` (logic)
+- Database: `hass_migrate/database/` (clients)
+- Utils: `hass_migrate/utils/` (cleaner, progress)
+
+See `.github/copilot-instructions.md` for additional agent instructions.

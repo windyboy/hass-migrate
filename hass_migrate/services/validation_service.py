@@ -125,12 +125,13 @@ class ValidationService:
         """
         try:
             # Fetch sample from MySQL
-            mysql_conn = self.mysql_client.create_connection()
-            mysql_cursor = mysql_conn.cursor(dictionary=True)
-            mysql_cursor.execute(f"SELECT * FROM {table} ORDER BY {pk_column} LIMIT %s", (sample_size,))
-            mysql_rows = mysql_cursor.fetchall()
-            mysql_cursor.close()
+            mysql_conn = await self.mysql_client.create_connection()
+            mysql_cursor = await mysql_conn.cursor()
+            await mysql_cursor.execute(f"SELECT * FROM {table} ORDER BY {pk_column} LIMIT %s", (sample_size,))
+            mysql_rows = await mysql_cursor.fetchall()
+            await mysql_cursor.close()
             mysql_conn.close()
+            await self.mysql_client.pool.release(mysql_conn)
 
             # Fetch sample from PostgreSQL
             async with self.pg_client.pool.acquire() as pg_conn:

@@ -129,17 +129,26 @@ def clean_batch_values(
     Returns:
         List of cleaned row lists
     """
+    if not rows:
+        return []
+
+    # Pre-compute column validation to avoid repeated checks
+    expected_cols = len(columns)
     cleaned_batch = []
+
     for row in rows:
-        if len(row) != len(columns):
+        if len(row) != expected_cols:
             logger.warning(
-                f"{table} row has {len(row)} columns, expected {len(columns)}. Skipping row."
+                f"{table} row has {len(row)} columns, expected {expected_cols}. Skipping row."
             )
             continue
+
+        # Use list comprehension for better performance
         cleaned_row = [
             clean_value(table, col, val) for col, val in zip(columns, row)
         ]
         cleaned_batch.append(cleaned_row)
+
     return cleaned_batch
 
 

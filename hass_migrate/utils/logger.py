@@ -14,6 +14,7 @@ class StructuredLogger:
     def __init__(self, name: str, level: int = logging.INFO):
         self.logger = logging.getLogger(name)
         self.logger.setLevel(level)
+        self.safe_logger = SafeLogger()
 
         # Remove existing handlers to avoid duplicates
         self.logger.handlers.clear()
@@ -43,7 +44,9 @@ class StructuredLogger:
             "duration_seconds": round(duration, 2),
             **kwargs,
         }
-        self.logger.info(json.dumps(log_data))
+        # Sanitize sensitive data before logging
+        sanitized_data = self.safe_logger.sanitize(log_data)
+        self.logger.info(json.dumps(sanitized_data))
 
     def info(self, message: str, **kwargs: Any) -> None:
         """Log info message."""

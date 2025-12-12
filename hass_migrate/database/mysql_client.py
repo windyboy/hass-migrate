@@ -41,6 +41,7 @@ class MySQLClient:
             autocommit=True,
             minsize=self.config.mysql_pool_minsize,
             maxsize=self.config.mysql_pool_maxsize,
+            connect_timeout=self.config.mysql_pool_timeout,
         )
 
     async def close(self) -> None:
@@ -49,6 +50,17 @@ class MySQLClient:
             self.pool.close()
             await self.pool.wait_closed()
             self.pool = None
+
+    async def create_connection(self) -> aiomysql.Connection:
+        """
+        Create a single connection from the pool for concurrent operations.
+
+        Returns:
+            MySQL connection object
+        """
+        if self.pool is None:
+            raise RuntimeError("MySQL connection pool not established")
+        return await self.pool.acquire()
 
     async def count_rows(self, table: str) -> int:
         """

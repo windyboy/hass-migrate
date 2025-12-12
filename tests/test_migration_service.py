@@ -17,8 +17,13 @@ from hass_migrate.utils.logger import StructuredLogger
 def mock_mysql_client():
     """Mock MySQL client."""
     client = MagicMock()
-    client.connection = MagicMock()
-    client.create_connection = MagicMock(return_value=MagicMock())
+    client.pool = MagicMock()
+    # Mock pool.acquire() for regular connections
+    mock_conn = AsyncMock()
+    client.pool.acquire = AsyncMock(return_value=mock_conn)
+    client.pool.release = AsyncMock()
+    # Mock create_connection() for concurrent migrations
+    client.create_connection = AsyncMock(return_value=mock_conn)
     return client
 
 
@@ -81,11 +86,17 @@ class TestMigrationService:
     async def test_migrate_table_success(self, migration_service, migration_config, mock_mysql_client, mock_pg_client, mock_logger):
         """Test successful table migration."""
         # Mock the MySQL connection and cursor
-        mock_connection = MagicMock()
-        mock_cursor = MagicMock()
-        mock_cursor.fetchmany.return_value = []  # No rows to migrate
-        mock_connection.cursor.return_value = mock_cursor
-        mock_mysql_client.connection = mock_connection
+        mock_connection = AsyncMock()
+        mock_cursor = AsyncMock()
+        mock_cursor.fetchmany = AsyncMock(return_value=[])  # No rows to migrate
+        mock_cursor.execute = AsyncMock()
+        mock_cursor.close = AsyncMock()
+        mock_connection.cursor = AsyncMock(return_value=mock_cursor)
+        mock_connection.close = AsyncMock()
+
+        # Update the mock to return our connection
+        mock_mysql_client.pool.acquire = AsyncMock(return_value=mock_connection)
+        mock_mysql_client.pool.release = AsyncMock()
 
         # Mock PG connection
         mock_pg_conn = AsyncMock()
@@ -116,11 +127,17 @@ class TestMigrationService:
     async def test_migrate_table_insert_error(self, migration_service, migration_config, mock_mysql_client, mock_pg_client, mock_logger):
         """Test migration with insert error."""
         # Mock the MySQL connection and cursor
-        mock_connection = MagicMock()
-        mock_cursor = MagicMock()
-        mock_cursor.fetchmany.side_effect = [[(1, "test")], []]  # First call returns row, second returns empty
-        mock_connection.cursor.return_value = mock_cursor
-        mock_mysql_client.connection = mock_connection
+        mock_connection = AsyncMock()
+        mock_cursor = AsyncMock()
+        mock_cursor.fetchmany = AsyncMock(side_effect=[[(1, "test")], []])  # First call returns row, second returns empty
+        mock_cursor.execute = AsyncMock()
+        mock_cursor.close = AsyncMock()
+        mock_connection.cursor = AsyncMock(return_value=mock_cursor)
+        mock_connection.close = AsyncMock()
+
+        # Update the mock to return our connection
+        mock_mysql_client.pool.acquire = AsyncMock(return_value=mock_connection)
+        mock_mysql_client.pool.release = AsyncMock()
 
         # Mock PG connection to raise error on copy and executemany
         mock_pg_conn = AsyncMock()
